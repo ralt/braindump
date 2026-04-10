@@ -23,7 +23,8 @@ class DashboardController extends AbstractDashboardController
     public function configureDashboard(): Dashboard
     {
         return Dashboard::new()
-            ->setTitle('Braindump Admin');
+            ->setTitle('Braindump Admin')
+            ->setFaviconPath('favicon.ico');
     }
 
     public function configureMenuItems(): iterable
