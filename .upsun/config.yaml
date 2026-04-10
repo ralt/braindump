@@ -80,15 +80,12 @@ applications:
 services:
   db:
     type: postgresql:16
-    disk: 2048
 
   mercure:
     type: mercure:0
-    disk: 256
 
   audio-storage:
     type: network-storage:2.0
-    disk: 10240
 
 routes:
   'https://{default}/':
