@@ -105,6 +105,30 @@ class RecordingController extends AbstractController
         ], Response::HTTP_CREATED);
     }
 
+    #[Route('/api/recordings/{id}/retry', name: 'api_recording_retry', methods: ['POST'])]
+    public function retry(Recording $recording, Request $request): Response
+    {
+        $this->denyAccessUnlessGranted('RECORDING_EDIT', $recording);
+
+        if (!$this->isCsrfTokenValid('retry', $request->request->getString('_token'))) {
+            throw $this->createAccessDeniedException();
+        }
+
+        if ($recording->getStatus() !== RecordingStatus::Failed) {
+            $this->addFlash('error', 'Only failed recordings can be retried.');
+            return $this->redirectToRoute('app_recording_show', ['id' => $recording->getId()]);
+        }
+
+        $recording->setStatus(RecordingStatus::Pending);
+        $recording->setErrorMessage(null);
+        $this->em->flush();
+
+        $this->bus->dispatch(new TranscribeRecordingMessage($recording->getId()));
+
+        $this->addFlash('success', 'Transcription retry queued.');
+        return $this->redirectToRoute('app_recording_show', ['id' => $recording->getId()]);
+    }
+
     #[Route('/api/recordings/{id}/status', name: 'api_recording_status', methods: ['GET'])]
     public function status(Recording $recording): JsonResponse
     {
