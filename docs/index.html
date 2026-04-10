@@ -6,13 +6,38 @@
     <title>Braindump — Speech to Text, Then Think</title>
     <style>
         :root {
+            --bg: #f6f6f9;
+            --surface: #ffffff;
+            --accent: #4361ee;
+            --accent-light: #3a56d4;
+            --text: #1a1a2e;
+            --text-muted: #4e4e66;
+            --border: #e0e0e8;
+            --glow: rgba(67,97,238,.06);
+        }
+
+        @media(prefers-color-scheme:dark) {
+            :root:not([data-theme="light"]) {
+                --bg: #0f0f1a;
+                --surface: #1a1a2e;
+                --accent: #6c84f7;
+                --accent-light: #8da0ff;
+                --text: #e0e0e0;
+                --text-muted: #9a9ab0;
+                --border: #2a2a3e;
+                --glow: rgba(108,132,247,.08);
+            }
+        }
+
+        :root[data-theme="dark"] {
             --bg: #0f0f1a;
             --surface: #1a1a2e;
-            --accent: #4361ee;
-            --accent-light: #6c84f7;
+            --accent: #6c84f7;
+            --accent-light: #8da0ff;
             --text: #e0e0e0;
-            --text-muted: #888;
+            --text-muted: #9a9ab0;
             --border: #2a2a3e;
+            --glow: rgba(108,132,247,.08);
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -22,6 +47,7 @@
             background: var(--bg);
             color: var(--text);
             line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
         }
 
         .container { max-width: 960px; margin: 0 auto; padding: 0 2rem; }
@@ -54,11 +80,15 @@
             border-radius: 6px;
             font-weight: 600;
             font-size: 1.1rem;
-            transition: background 0.2s;
+            transition: all 0.2s ease;
         }
-        .hero .cta:hover { background: var(--accent-light); }
+        .hero .cta:hover {
+            background: var(--accent-light);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px var(--glow);
+        }
 
-        /* How it works */
+        /* Sections */
         .section {
             padding: 4rem 0;
         }
@@ -79,6 +109,11 @@
             border-radius: 12px;
             padding: 2rem;
             text-align: center;
+            transition: all 0.2s ease;
+        }
+        .step:hover {
+            border-color: var(--accent);
+            box-shadow: 0 4px 20px var(--glow);
         }
         .step .number {
             display: inline-flex;
@@ -107,11 +142,16 @@
             border: 1px solid var(--border);
             border-radius: 12px;
             padding: 1.5rem;
+            transition: all 0.2s ease;
+        }
+        .feature:hover {
+            border-color: var(--accent);
+            box-shadow: 0 4px 20px var(--glow);
         }
         .feature h3 {
             font-size: 1.1rem;
             margin-bottom: 0.5rem;
-            color: var(--accent-light);
+            color: var(--accent);
         }
         .feature p { color: var(--text-muted); font-size: 0.9rem; }
 
@@ -126,11 +166,16 @@
             border: 1px solid var(--border);
             border-radius: 12px;
             padding: 1.5rem;
+            transition: all 0.2s ease;
+        }
+        .arch-card:hover {
+            border-color: var(--accent);
+            box-shadow: 0 4px 20px var(--glow);
         }
         .arch-card h3 {
             font-size: 1rem;
             margin-bottom: 0.5rem;
-            color: var(--accent-light);
+            color: var(--accent);
         }
         .arch-card p { color: var(--text-muted); font-size: 0.85rem; }
 
@@ -159,10 +204,79 @@
             border-top: 1px solid var(--border);
             margin-top: 4rem;
         }
-        footer a { color: var(--accent-light); text-decoration: none; }
+        footer a { color: var(--accent); text-decoration: none; }
+
+        /* Theme toggle */
+        .theme-toggle {
+            position: fixed;
+            top: 1.25rem;
+            right: 1.25rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            width: 44px;
+            height: 24px;
+            cursor: pointer;
+            padding: 2px;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+        }
+        .theme-toggle:hover {
+            border-color: var(--accent);
+        }
+        .theme-toggle .knob {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--accent);
+            transition: transform 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .theme-toggle .knob svg {
+            width: 11px;
+            height: 11px;
+            color: var(--surface);
+        }
+        .theme-toggle[aria-checked="true"] .knob {
+            transform: translateX(20px);
+        }
+
+        /* Focus */
+        :focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+
+        /* Reduced motion */
+        @media(prefers-reduced-motion:reduce) {
+            *, *::before, *::after {
+                transition: none !important;
+                animation: none !important;
+            }
+            .hero .cta:hover, .step:hover, .feature:hover, .arch-card:hover { transform: none; }
+            .theme-toggle .knob { transition: none; }
+        }
+
+        /* Responsive */
+        @media(max-width:480px) {
+            .hero { padding: 4rem 1.5rem 3rem; }
+            .hero h1 { font-size: 2.5rem; }
+            .hero .tagline { font-size: 1.1rem; }
+            .container { padding: 0 1.5rem; }
+        }
     </style>
 </head>
 <body>
+
+<button class="theme-toggle" role="switch" aria-checked="false" aria-label="Toggle dark mode">
+    <span class="knob">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </span>
+</button>
 
 <div class="hero">
     <h1>Braindump</h1>
@@ -273,6 +387,37 @@
 <footer>
     <p>Built with Symfony. Deployed on <a href="https://upsun.com">Upsun</a>. Source on <a href="https://github.com/ralt/braindump">GitHub</a>.</p>
 </footer>
+
+<script>
+(function(){
+    var toggle=document.querySelector('.theme-toggle');
+    var root=document.documentElement;
+    var sun=toggle.querySelector('.icon-sun');
+    var moon=toggle.querySelector('.icon-moon');
+    var stored=localStorage.getItem('theme');
+    var prefersDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
+    var dark=stored?stored==='dark':prefersDark;
+
+    function apply(d){
+        dark=d;
+        root.setAttribute('data-theme',d?'dark':'light');
+        toggle.setAttribute('aria-checked',String(d));
+        sun.style.display=d?'none':'block';
+        moon.style.display=d?'block':'none';
+    }
+
+    apply(dark);
+
+    toggle.addEventListener('click',function(){
+        apply(!dark);
+        localStorage.setItem('theme',dark?'dark':'light');
+    });
+
+    window.matchMedia('(prefers-color-scheme:dark)').addEventListener('change',function(e){
+        if(!localStorage.getItem('theme')){apply(e.matches)}
+    });
+})();
+</script>
 
 </body>
 </html>
