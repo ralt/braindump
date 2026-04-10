@@ -23,7 +23,7 @@ This separation means the web application stays responsive regardless of how man
 
 Claude Code sessions are long-lived and interactive — a user might keep a session open for 30 minutes while they work through ideas with Claude. Traditional PHP-FPM ties up one worker per open connection, and with limited workers, even a handful of concurrent sessions would starve the web application of capacity.
 
-Mercure (via Server-Sent Events) handles persistent connections with async I/O, so hundreds of concurrent sessions don't exhaust PHP workers. The web application publishes events to the Mercure hub, which efficiently fans them out to connected browsers. This is the same architecture pattern used at SymfonyCon 2025 to handle 1200 simultaneous live connections.
+Mercure (via Server-Sent Events) handles persistent connections with async I/O, so hundreds of concurrent sessions don't exhaust PHP workers. The web application publishes events to the Mercure hub, which efficiently fans them out to connected browsers.
 
 On Upsun, Mercure runs as a managed service on a dedicated subdomain, keeping it fully decoupled from the PHP-FPM application.
 
