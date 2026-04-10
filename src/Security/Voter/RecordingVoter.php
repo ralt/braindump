@@ -1,0 +1,55 @@
+<?php
+
+namespace App\Security\Voter;
+
+use App\Entity\Recording;
+use App\Entity\User;
+use App\Repository\RecordingShareRepository;
+use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
+use Symfony\Component\Security\Core\Authorization\Voter\Voter;
+
+class RecordingVoter extends Voter
+{
+    public const VIEW = 'RECORDING_VIEW';
+    public const EDIT = 'RECORDING_EDIT';
+    public const SHARE = 'RECORDING_SHARE';
+    public const CLAUDE = 'RECORDING_CLAUDE';
+
+    public function __construct(
+        private RecordingShareRepository $shareRepository,
+    ) {}
+
+    protected function supports(string $attribute, mixed $subject): bool
+    {
+        return $subject instanceof Recording
+            && \in_array($attribute, [self::VIEW, self::EDIT, self::SHARE, self::CLAUDE], true);
+    }
+
+    protected function voteOnAttribute(string $attribute, mixed $subject, TokenInterface $token): bool
+    {
+        $user = $token->getUser();
+        if (!$user instanceof User) {
+            return false;
+        }
+
+        assert($subject instanceof Recording);
+
+        // Owner can do everything
+        if ($subject->getOwner()->getId()->equals($user->getId())) {
+            return true;
+        }
+
+        // Check share
+        $share = $this->shareRepository->findByRecordingAndUser($subject, $user);
+        if ($share === null) {
+            return false;
+        }
+
+        return match ($attribute) {
+            self::VIEW, self::CLAUDE => true,
+            self::EDIT => $share->getPermission()->value === 'edit',
+            self::SHARE => false, // only owner can share
+            default => false,
+        };
+    }
+}

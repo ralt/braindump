@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>{% block title %}Braindump{% endblock %}</title>
+        <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 128 128%22><text y=%221.2em%22 font-size=%2296%22>🧠</text></svg>">
+        {% block stylesheets %}
+            <style>
+                *, *::before, *::after { box-sizing: border-box; }
+                body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; background: #f5f5f5; color: #333; }
+                .navbar { background: #1a1a2e; color: #fff; padding: 0.75rem 1.5rem; display: flex; justify-content: space-between; align-items: center; }
+                .navbar a { color: #e0e0e0; text-decoration: none; }
+                .navbar a:hover { color: #fff; }
+                .navbar .brand { font-weight: bold; font-size: 1.2rem; }
+                .navbar .nav-links { display: flex; gap: 1.5rem; align-items: center; }
+                .container { max-width: 1100px; margin: 2rem auto; padding: 0 1.5rem; }
+                .btn { display: inline-block; padding: 0.5rem 1rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9rem; text-decoration: none; }
+                .btn-primary { background: #4361ee; color: #fff; }
+                .btn-primary:hover { background: #3a56d4; }
+                .btn-danger { background: #e63946; color: #fff; }
+                .btn-danger:hover { background: #d12f3c; }
+                .btn-secondary { background: #6c757d; color: #fff; }
+                .btn-secondary:hover { background: #5a6268; }
+                .btn-sm { padding: 0.3rem 0.6rem; font-size: 0.8rem; }
+                .card { background: #fff; border-radius: 8px; padding: 1.5rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+                .form-group { margin-bottom: 1rem; }
+                .form-group label { display: block; margin-bottom: 0.3rem; font-weight: 500; }
+                .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9rem; }
+                .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+                .alert-error { background: #fce4ec; color: #c62828; }
+                .alert-success { background: #e8f5e9; color: #2e7d32; }
+                .badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 12px; font-size: 0.75rem; font-weight: 500; }
+                .badge-pending { background: #fff3cd; color: #856404; }
+                .badge-transcribing { background: #cce5ff; color: #004085; }
+                .badge-completed { background: #d4edda; color: #155724; }
+                .badge-failed { background: #f8d7da; color: #721c24; }
+                table { width: 100%; border-collapse: collapse; }
+                table th, table td { padding: 0.75rem; text-align: left; border-bottom: 1px solid #eee; }
+                table th { font-weight: 600; color: #666; }
+                .flex { display: flex; }
+                .flex-between { justify-content: space-between; }
+                .flex-center { align-items: center; }
+                .gap-1 { gap: 0.5rem; }
+                .mb-1 { margin-bottom: 1rem; }
+                .mt-1 { margin-top: 1rem; }
+            </style>
+        {% endblock %}
+
+        {% block javascripts %}
+            {% block importmap %}{{ importmap('app') }}{% endblock %}
+        {% endblock %}
+    </head>
+    <body>
+        {% if app.user %}
+        <nav class="navbar">
+            <a href="{{ path('app_recording_index') }}" class="brand">Braindump</a>
+            <div class="nav-links">
+                <a href="{{ path('app_recording_index') }}">Recordings</a>
+                <a href="{{ path('app_recording_new') }}">New Recording</a>
+                <a href="{{ path('app_user_settings') }}">Settings</a>
+                {% if is_granted('ROLE_ADMIN') %}
+                    <a href="{{ path('admin') }}">Admin</a>
+                {% endif %}
+                <a href="{{ path('app_logout') }}">Logout</a>
+            </div>
+        </nav>
+        {% endif %}
+
+        <div class="container">
+            {% for label, messages in app.flashes %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ label }}">{{ message }}</div>
+                {% endfor %}
+            {% endfor %}
+
+            {% block body %}{% endblock %}
+        </div>
+    </body>
+</html>

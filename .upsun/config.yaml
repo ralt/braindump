@@ -1,0 +1,102 @@
+applications:
+  app:
+    type: 'php:8.4'
+    source:
+      root: '/'
+
+    build:
+      flavor: none
+
+    dependencies:
+      php:
+        composer/composer: '^2'
+
+    runtime:
+      extensions:
+        - pdo_pgsql
+        - sodium
+        - intl
+        - mbstring
+        - ctype
+        - iconv
+        - xsl
+
+    hooks:
+      build: |
+        set -e
+        composer install --no-dev --optimize-autoloader --no-interaction
+        php bin/console asset-map:compile
+        php bin/console importmap:install
+      deploy: |
+        set -e
+        php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration
+        php bin/console cache:clear
+
+    relationships:
+      database: 'db:postgresql'
+      mercure: 'mercure:mercure'
+
+    mounts:
+      '/var': { source: storage, source_path: var }
+      '/storage/audio':
+        source: service
+        service: audio-storage
+        source_path: audio
+
+    web:
+      locations:
+        '/':
+          root: 'public'
+          passthru: '/index.php'
+          scripts: true
+          allow: true
+
+    variables:
+      env:
+        APP_ENV: prod
+        SEARCH_PROVIDER: postgres
+      php:
+        upload_max_filesize: 26M
+        post_max_size: 27M
+        memory_limit: 256M
+
+    workers:
+      transcription:
+        commands:
+          start: php bin/console messenger:consume async --time-limit=3600 --memory-limit=256M
+        mounts:
+          '/var': { source: storage, source_path: var }
+          '/storage/audio':
+            source: service
+            service: audio-storage
+            source_path: audio
+
+      claude:
+        commands:
+          start: php bin/console messenger:consume claude --time-limit=3600 --memory-limit=512M
+        mounts:
+          '/var': { source: storage, source_path: var }
+
+services:
+  db:
+    type: postgresql:16
+    disk: 2048
+
+  mercure:
+    type: mercure:0
+    disk: 256
+
+  audio-storage:
+    type: network-storage:2.0
+    disk: 10240
+
+routes:
+  'https://{default}/':
+    type: upstream
+    upstream: 'app:http'
+
+  'https://mercure.{default}/':
+    type: upstream
+    upstream: 'mercure:mercure'
+    cache:
+      enabled: false

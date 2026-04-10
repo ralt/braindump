@@ -1,0 +1,51 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Recordings - Braindump{% endblock %}
+
+{% block body %}
+    <div class="flex flex-between flex-center mb-1">
+        <h1 style="margin: 0;">Recordings</h1>
+        <a href="{{ path('app_recording_new') }}" class="btn btn-primary">New Recording</a>
+    </div>
+
+    <div class="card mb-1">
+        <form method="get" action="{{ path('app_recording_index') }}" class="flex gap-1">
+            <input type="text" name="q" value="{{ query }}" placeholder="Search recordings..." style="flex: 1; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+            <button type="submit" class="btn btn-primary">Search</button>
+            {% if query %}
+                <a href="{{ path('app_recording_index') }}" class="btn btn-secondary">Clear</a>
+            {% endif %}
+        </form>
+    </div>
+
+    {% if recordings is empty %}
+        <div class="card" style="text-align: center; color: #888;">
+            <p>No recordings yet. <a href="{{ path('app_recording_new') }}">Create your first recording</a>.</p>
+        </div>
+    {% else %}
+        <div class="card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Status</th>
+                        <th>Owner</th>
+                        <th>Created</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for recording in recordings %}
+                        <tr>
+                            <td><a href="{{ path('app_recording_show', {id: recording.id}) }}">{{ recording.title }}</a></td>
+                            <td><span class="badge badge-{{ recording.status.value }}">{{ recording.status.value }}</span></td>
+                            <td>{{ recording.owner.displayName }}</td>
+                            <td>{{ recording.createdAt|date('Y-m-d H:i') }}</td>
+                            <td><a href="{{ path('app_recording_show', {id: recording.id}) }}" class="btn btn-sm btn-secondary">View</a></td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
+{% endblock %}

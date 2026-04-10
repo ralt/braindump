@@ -1,0 +1,36 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}New Recording - Braindump{% endblock %}
+
+{% block body %}
+    <h1>New Recording</h1>
+
+    <div class="card" {{ stimulus_controller('audio-recorder', {
+        uploadUrl: path('api_recording_upload'),
+        maxFileSize: 25 * 1024 * 1024
+    }) }}>
+        <div class="form-group">
+            <label for="title">Title</label>
+            <input type="text" id="title" placeholder="Give your recording a name..." {{ stimulus_target('audio-recorder', 'title') }}>
+        </div>
+
+        <div class="form-group">
+            <label for="microphone">Microphone</label>
+            <select id="microphone" {{ stimulus_target('audio-recorder', 'microphone') }}>
+                <option value="">Loading microphones...</option>
+            </select>
+        </div>
+
+        <div class="flex gap-1 mb-1">
+            <button class="btn btn-primary" {{ stimulus_action('audio-recorder', 'start') }} {{ stimulus_target('audio-recorder', 'startBtn') }}>Record</button>
+            <button class="btn btn-danger" {{ stimulus_action('audio-recorder', 'stop') }} {{ stimulus_target('audio-recorder', 'stopBtn') }} disabled>Stop</button>
+        </div>
+
+        <div {{ stimulus_target('audio-recorder', 'status') }} style="display: none;" class="alert">
+            <span {{ stimulus_target('audio-recorder', 'timer') }}>00:00</span>
+            <span {{ stimulus_target('audio-recorder', 'fileSize') }}></span>
+        </div>
+
+        <div {{ stimulus_target('audio-recorder', 'uploadStatus') }} style="display: none;" class="alert alert-success"></div>
+    </div>
+{% endblock %}

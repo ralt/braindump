@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Braindump — Speech to Text, Then Think</title>
+    <style>
+        :root {
+            --bg: #0f0f1a;
+            --surface: #1a1a2e;
+            --accent: #4361ee;
+            --accent-light: #6c84f7;
+            --text: #e0e0e0;
+            --text-muted: #888;
+            --border: #2a2a3e;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .container { max-width: 960px; margin: 0 auto; padding: 0 2rem; }
+
+        /* Hero */
+        .hero {
+            text-align: center;
+            padding: 6rem 2rem 4rem;
+        }
+        .hero h1 {
+            font-size: 3.5rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, var(--accent), var(--accent-light));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .hero .tagline {
+            font-size: 1.4rem;
+            color: var(--text-muted);
+            max-width: 600px;
+            margin: 0 auto 2rem;
+        }
+        .hero .cta {
+            display: inline-block;
+            padding: 0.8rem 2rem;
+            background: var(--accent);
+            color: #fff;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 1.1rem;
+            transition: background 0.2s;
+        }
+        .hero .cta:hover { background: var(--accent-light); }
+
+        /* How it works */
+        .section {
+            padding: 4rem 0;
+        }
+        .section h2 {
+            font-size: 2rem;
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .steps {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 2rem;
+        }
+        .step {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+            text-align: center;
+        }
+        .step .number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: var(--accent);
+            color: #fff;
+            font-weight: bold;
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+        }
+        .step h3 { margin-bottom: 0.5rem; }
+        .step p { color: var(--text-muted); font-size: 0.9rem; }
+
+        /* Features */
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+        }
+        .feature {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+        }
+        .feature h3 {
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+            color: var(--accent-light);
+        }
+        .feature p { color: var(--text-muted); font-size: 0.9rem; }
+
+        /* Architecture */
+        .arch-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+        }
+        .arch-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+        }
+        .arch-card h3 {
+            font-size: 1rem;
+            margin-bottom: 0.5rem;
+            color: var(--accent-light);
+        }
+        .arch-card p { color: var(--text-muted); font-size: 0.85rem; }
+
+        /* Tech stack */
+        .tech-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            justify-content: center;
+        }
+        .tech-badge {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            padding: 0.4rem 1rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 3rem 0;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            border-top: 1px solid var(--border);
+            margin-top: 4rem;
+        }
+        footer a { color: var(--accent-light); text-decoration: none; }
+    </style>
+</head>
+<body>
+
+<div class="hero">
+    <h1>Braindump</h1>
+    <p class="tagline">Record your thoughts. Get them transcribed. Let AI help you think through them.</p>
+    <a href="https://github.com/ralt/braindump" class="cta">View on GitHub</a>
+</div>
+
+<div class="container">
+
+    <section class="section">
+        <h2>How It Works</h2>
+        <div class="steps">
+            <div class="step">
+                <div class="number">1</div>
+                <h3>Record</h3>
+                <p>Hit record in your browser. Pick your microphone. Talk for up to 25 minutes. Give it a title.</p>
+            </div>
+            <div class="step">
+                <div class="number">2</div>
+                <h3>Transcribe</h3>
+                <p>A background worker sends your audio to OpenAI Whisper. No waiting — you get notified when it's done.</p>
+            </div>
+            <div class="step">
+                <div class="number">3</div>
+                <h3>Search</h3>
+                <p>Full-text search across all your transcriptions. Find that idea you had last Tuesday.</p>
+            </div>
+            <div class="step">
+                <div class="number">4</div>
+                <h3>Think with Claude</h3>
+                <p>Start an interactive Claude Code session. Claude reads your transcription and helps you work through it.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="section">
+        <h2>Features</h2>
+        <div class="features">
+            <div class="feature">
+                <h3>Browser Audio Recording</h3>
+                <p>Choose your microphone, hit record. WebM/Opus compression keeps files small. Visual timer and file size indicator.</p>
+            </div>
+            <div class="feature">
+                <h3>Background Transcription</h3>
+                <p>Audio files are queued and transcribed asynchronously via OpenAI Whisper. Real-time status updates via Server-Sent Events.</p>
+            </div>
+            <div class="feature">
+                <h3>Full-Text Search</h3>
+                <p>PostgreSQL full-text search with weighted ranking (title matches rank higher). Optional OpenSearch backend for larger deployments.</p>
+            </div>
+            <div class="feature">
+                <h3>Sharing</h3>
+                <p>Share recordings with other users by email. View or edit permissions, like Google Docs.</p>
+            </div>
+            <div class="feature">
+                <h3>Claude Code Sessions</h3>
+                <p>Interactive terminal in the browser via xterm.js. Claude reads your transcription and you chat with it live. Each user brings their own API key.</p>
+            </div>
+            <div class="feature">
+                <h3>Admin Back-Office</h3>
+                <p>EasyAdmin dashboard for user management. Create accounts, manage roles, view all recordings.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="section">
+        <h2>Why This Architecture</h2>
+        <div class="arch-grid">
+            <div class="arch-card">
+                <h3>Workers for Transcription</h3>
+                <p>OpenAI requests with large audio files can take minutes. Workers handle this outside the HTTP request path, so users aren't stuck waiting. The web request enqueues a job and returns immediately.</p>
+            </div>
+            <div class="arch-card">
+                <h3>Mercure for Live Updates</h3>
+                <p>Claude sessions are long-lived and interactive. Mercure handles persistent SSE connections with async I/O, so hundreds of sessions don't exhaust PHP workers. Same pattern used at SymfonyCon 2025 for 1200 live connections.</p>
+            </div>
+            <div class="arch-card">
+                <h3>Shared Network Storage</h3>
+                <p>Audio files must be accessible by both the web app and the transcription worker. Upsun's network-storage service gives both containers access to the same files.</p>
+            </div>
+            <div class="arch-card">
+                <h3>PostgreSQL for Everything</h3>
+                <p>Database, message queue (LISTEN/NOTIFY), and full-text search all in PostgreSQL. No extra services to manage. Swap in RabbitMQ or OpenSearch when you need to scale.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="section">
+        <h2>Tech Stack</h2>
+        <div class="tech-list">
+            <span class="tech-badge">Symfony 7.4</span>
+            <span class="tech-badge">PHP 8.4</span>
+            <span class="tech-badge">Symfony AI</span>
+            <span class="tech-badge">OpenAI Whisper</span>
+            <span class="tech-badge">Symfony Messenger</span>
+            <span class="tech-badge">Mercure</span>
+            <span class="tech-badge">PostgreSQL 16</span>
+            <span class="tech-badge">EasyAdmin</span>
+            <span class="tech-badge">Stimulus</span>
+            <span class="tech-badge">Turbo</span>
+            <span class="tech-badge">xterm.js</span>
+            <span class="tech-badge">Upsun</span>
+        </div>
+    </section>
+
+</div>
+
+<footer>
+    <p>Built with Symfony. Deployed on <a href="https://upsun.com">Upsun</a>. Source on <a href="https://github.com/ralt/braindump">GitHub</a>.</p>
+</footer>
+
+</body>
+</html>

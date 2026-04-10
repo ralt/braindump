@@ -1,0 +1,49 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Claude Session - {{ recording.title }}{% endblock %}
+
+{% block stylesheets %}
+    {{ parent() }}
+    <style>
+        .terminal-container {
+            background: #1a1a2e;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-top: 1rem;
+        }
+        .terminal-header {
+            background: #16213e;
+            padding: 0.5rem 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: #e0e0e0;
+            font-size: 0.85rem;
+        }
+        .terminal-header .title { font-weight: bold; }
+        #terminal {
+            height: 70vh;
+            padding: 0.5rem;
+        }
+    </style>
+{% endblock %}
+
+{% block body %}
+    <div {{ stimulus_controller('claude-terminal', {
+        recordingId: recording.id|string,
+        startUrl: path('api_claude_session_start', {id: recording.id}),
+        mercureUrl: mercure('claude-session/placeholder', { subscribe: ['claude-session/*'] })|split('?')[0] ~ '?topic=',
+    }) }}>
+        <div class="terminal-container">
+            <div class="terminal-header">
+                <span class="title">Claude - {{ recording.title }}</span>
+                <div class="flex gap-1">
+                    <span {{ stimulus_target('claude-terminal', 'status') }}>Connecting...</span>
+                    <button class="btn btn-danger btn-sm" {{ stimulus_action('claude-terminal', 'close') }}>Close</button>
+                    <a href="{{ path('app_recording_show', {id: recording.id}) }}" class="btn btn-secondary btn-sm">Back</a>
+                </div>
+            </div>
+            <div id="terminal" {{ stimulus_target('claude-terminal', 'terminal') }}></div>
+        </div>
+    </div>
+{% endblock %}

@@ -1,0 +1,98 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ recording.title }} - Braindump{% endblock %}
+
+{% block body %}
+    <div class="flex flex-between flex-center mb-1">
+        <h1 style="margin: 0;">{{ recording.title }}</h1>
+        <div class="flex gap-1">
+            <span class="badge badge-{{ recording.status.value }}" {{ stimulus_controller('recording-status', {
+                statusUrl: path('api_recording_status', {id: recording.id}),
+                status: recording.status.value
+            }) }} {{ stimulus_target('recording-status', 'badge') }}>{{ recording.status.value }}</span>
+
+            {% if is_granted('RECORDING_CLAUDE', recording) %}
+                <a href="{{ path('app_claude_session', {id: recording.id}) }}" class="btn btn-primary btn-sm">Start Claude</a>
+            {% endif %}
+
+            {% if is_granted('RECORDING_SHARE', recording) %}
+                <button class="btn btn-secondary btn-sm" {{ stimulus_action('share-modal', 'open') }}>Share</button>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card">
+        <p><strong>Owner:</strong> {{ recording.owner.displayName }}</p>
+        <p><strong>Created:</strong> {{ recording.createdAt|date('Y-m-d H:i') }}</p>
+        <p><strong>Size:</strong> {{ (recording.fileSizeBytes / 1024 / 1024)|number_format(1) }} MB</p>
+    </div>
+
+    {% if recording.status.value == 'completed' and recording.transcription %}
+        <div class="card">
+            <h2 style="margin-top: 0;">Transcription</h2>
+            <div style="white-space: pre-wrap; line-height: 1.6;">{{ recording.transcription }}</div>
+        </div>
+    {% elseif recording.status.value == 'failed' %}
+        <div class="card">
+            <div class="alert alert-error">
+                <strong>Transcription failed:</strong> {{ recording.errorMessage }}
+            </div>
+        </div>
+    {% elseif recording.status.value in ['pending', 'transcribing'] %}
+        <div class="card" {{ stimulus_target('recording-status', 'transcriptionArea') }}>
+            <p style="color: #888; text-align: center;">Transcription in progress...</p>
+        </div>
+    {% endif %}
+
+    {% if recording.shares|length > 0 %}
+        <div class="card">
+            <h3 style="margin-top: 0;">Shared with</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Permission</th>
+                        {% if is_granted('RECORDING_SHARE', recording) %}
+                            <th></th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for share in recording.shares %}
+                        <tr>
+                            <td>{{ share.sharedWith.displayName }} ({{ share.sharedWith.email }})</td>
+                            <td>{{ share.permission.value }}</td>
+                            {% if is_granted('RECORDING_SHARE', recording) %}
+                                <td>
+                                    <form method="post" action="{{ path('api_recording_unshare', {id: recording.id, userId: share.sharedWith.id}) }}" style="display: inline;">
+                                        <input type="hidden" name="_token" value="{{ csrf_token('unshare') }}">
+                                        <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+                                    </form>
+                                </td>
+                            {% endif %}
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
+
+    {% if is_granted('RECORDING_SHARE', recording) %}
+        <div class="card" id="share-modal" style="display: none;" {{ stimulus_controller('share-modal', {
+            shareUrl: path('api_recording_share', {id: recording.id})
+        }) }}>
+            <h3 style="margin-top: 0;">Share Recording</h3>
+            <form {{ stimulus_action('share-modal', 'submit', 'submit') }}>
+                <div class="flex gap-1">
+                    <input type="email" name="email" placeholder="User email..." style="flex: 1; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;" {{ stimulus_target('share-modal', 'email') }}>
+                    <select name="permission" {{ stimulus_target('share-modal', 'permission') }}>
+                        <option value="view">View</option>
+                        <option value="edit">Edit</option>
+                    </select>
+                    <button type="submit" class="btn btn-primary">Share</button>
+                </div>
+            </form>
+            <div {{ stimulus_target('share-modal', 'message') }}></div>
+        </div>
+    {% endif %}
+{% endblock %}

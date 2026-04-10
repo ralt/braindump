@@ -1,0 +1,28 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Login - Braindump{% endblock %}
+
+{% block body %}
+    <div style="max-width: 400px; margin: 4rem auto;">
+        <div class="card">
+            <h2 style="margin-top: 0;">Login</h2>
+
+            {% if error %}
+                <div class="alert alert-error">{{ error.messageKey|trans(error.messageData, 'security') }}</div>
+            {% endif %}
+
+            <form method="post">
+                <div class="form-group">
+                    <label for="inputEmail">Email</label>
+                    <input type="email" id="inputEmail" name="_username" value="{{ last_username }}" required autofocus>
+                </div>
+                <div class="form-group">
+                    <label for="inputPassword">Password</label>
+                    <input type="password" id="inputPassword" name="_password" required>
+                </div>
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token('authenticate') }}">
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Sign in</button>
+            </form>
+        </div>
+    </div>
+{% endblock %}
