@@ -98,12 +98,6 @@ applications:
         mounts:
           '/var': { source: storage, source_path: var }
 
-      ci:
-        commands:
-          start: php bin/console messenger:consume ci --time-limit=604800 --memory-limit=256M
-        mounts:
-          '/var': { source: storage, source_path: var }
-
     crons:
       weekly_ci:
         spec: '0 3 * * 1'

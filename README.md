@@ -105,8 +105,8 @@ php bin/console messenger:consume async --time-limit=3600
 # Claude session worker
 php bin/console messenger:consume claude --time-limit=3600
 
-# CI worker (optional, for local test runs)
-php bin/console messenger:consume ci --time-limit=3600
+# CI run (manually trigger dependency update + test cycle on Upsun)
+php bin/console app:ci-run
 ```
 
 ### Running Tests
@@ -136,7 +136,7 @@ The `.upsun/config.yaml` defines the full deployment:
 - **Web application**: PHP 8.4 with PHP-FPM
 - **Transcription worker**: Consumes the `async` Messenger transport — runs OpenAI Whisper transcription outside the HTTP request path
 - **Claude worker**: Consumes the `claude` Messenger transport — manages long-lived interactive Claude Code sessions via `proc_open()`, streaming output through Mercure
-- **CI worker**: Consumes the `ci` Messenger transport — triggered weekly by cron, creates a throwaway Upsun environment, runs `phpunit`, merges to main on success
+- **Weekly CI cron**: Runs `app:ci-run` — creates a throwaway Upsun environment, updates dependencies, runs `phpunit`, merges to main on success
 - **PostgreSQL 16**: Primary database
 - **Mercure**: Managed real-time hub
 - **Network storage**: Shared audio file storage
