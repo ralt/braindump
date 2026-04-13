@@ -28,10 +28,6 @@ services:
         arguments:
             $audioStoragePath: '%app.audio_storage_path%'
 
-    App\Controller\ClaudeSessionController:
-        arguments:
-            $mercurePublicUrl: '%env(MERCURE_PUBLIC_URL)%'
-
     App\Service\ApiKeyEncryptorInterface:
         alias: App\Service\PlaintextApiKeyEncryptor
 

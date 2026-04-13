@@ -9,7 +9,7 @@
             <span class="badge badge-{{ recording.status.value }}" {{ stimulus_controller('recording-status', {
                 statusUrl: path('api_recording_status', {id: recording.id}),
                 status: recording.status.value,
-                mercureUrl: recording.status.value in ['pending', 'transcribing'] ? mercure('recording/' ~ recording.id) : ''
+                mercureUrl: recording.status.value in ['pending', 'transcribing'] ? mercurePublicUrl ~ '?topic=' ~ ('recording/' ~ recording.id)|url_encode : ''
             }) }} {{ stimulus_target('recording-status', 'badge') }}>{{ recording.status.value }}</span>
 
             {% if is_granted('RECORDING_CLAUDE', recording) %}
