@@ -48,6 +48,7 @@ Symfony Messenger needs a transport for async messages. The simplest option is D
 - PHP 8.4 with extensions: pdo_pgsql, sodium, intl, mbstring, xml
 - Composer 2
 - PostgreSQL 16
+- Node.js (for pi.dev)
 - Symfony CLI (optional, for `symfony server:start`)
 
 ### Installation
@@ -56,6 +57,7 @@ Symfony Messenger needs a transport for async messages. The simplest option is D
 git clone <repo-url>
 cd braindump
 composer install
+npm install -g @mariozechner/pi-coding-agent
 ```
 
 ### Configuration
