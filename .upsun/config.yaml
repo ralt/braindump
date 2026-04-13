@@ -95,8 +95,6 @@ applications:
       claude:
         commands:
           start: php bin/console messenger:consume claude --time-limit=3600 --memory-limit=512M
-        relationships:
-          vault_kms: 'vault_kms:api-keys'
         mounts:
           '/var': { source: storage, source_path: var }
 
