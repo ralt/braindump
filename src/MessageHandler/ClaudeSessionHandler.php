@@ -7,7 +7,7 @@ use App\Entity\Recording;
 use App\Entity\User;
 use App\Enum\ClaudeSessionStatus;
 use App\Message\StartClaudeSessionMessage;
-use App\Service\ApiKeyEncryptor;
+use App\Service\ApiKeyEncryptorInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Mercure\HubInterface;
 use Symfony\Component\Mercure\Update;
@@ -19,7 +19,7 @@ final class ClaudeSessionHandler
     public function __construct(
         private EntityManagerInterface $em,
         private HubInterface $hub,
-        private ApiKeyEncryptor $encryptor,
+        private ApiKeyEncryptorInterface $encryptor,
     ) {}
 
     public function __invoke(StartClaudeSessionMessage $message): void

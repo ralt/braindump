@@ -3,7 +3,7 @@
 namespace App\Controller;
 
 use App\Entity\User;
-use App\Service\ApiKeyEncryptor;
+use App\Service\ApiKeyEncryptorInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
@@ -14,7 +14,7 @@ class UserSettingsController extends AbstractController
 {
     public function __construct(
         private EntityManagerInterface $em,
-        private ApiKeyEncryptor $encryptor,
+        private ApiKeyEncryptorInterface $encryptor,
     ) {}
 
     #[Route('/settings', name: 'app_user_settings')]

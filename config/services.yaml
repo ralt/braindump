@@ -28,9 +28,8 @@ services:
         arguments:
             $audioStoragePath: '%app.audio_storage_path%'
 
-    App\Service\ApiKeyEncryptor:
-        arguments:
-            $appSecret: '%kernel.secret%'
+    App\Service\ApiKeyEncryptorInterface:
+        alias: App\Service\PlaintextApiKeyEncryptor
 
     App\Search\SearchProviderFactory:
         arguments:
@@ -45,3 +44,8 @@ services:
         arguments:
             $upsunApiToken: '%env(UPSUN_API_TOKEN)%'
             $upsunProjectId: '%env(UPSUN_PROJECT_ID)%'
+
+when@prod:
+    services:
+        App\Service\ApiKeyEncryptorInterface:
+            alias: App\Service\VaultKmsApiKeyEncryptor

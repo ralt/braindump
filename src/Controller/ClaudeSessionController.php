@@ -7,7 +7,7 @@ use App\Entity\Recording;
 use App\Entity\User;
 use App\Enum\ClaudeSessionStatus;
 use App\Message\StartClaudeSessionMessage;
-use App\Service\ApiKeyEncryptor;
+use App\Service\ApiKeyEncryptorInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -21,7 +21,7 @@ class ClaudeSessionController extends AbstractController
     public function __construct(
         private EntityManagerInterface $em,
         private MessageBusInterface $bus,
-        private ApiKeyEncryptor $encryptor,
+        private ApiKeyEncryptorInterface $encryptor,
     ) {}
 
     #[Route('/recordings/{id}/claude', name: 'app_claude_session')]

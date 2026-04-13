@@ -53,6 +53,7 @@ applications:
     relationships:
       database: 'db:postgresql'
       mercure: 'mercure:mercure'
+      vault_kms: 'vault_kms:api-keys'
 
     mounts:
       '/var': { source: storage, source_path: var }
@@ -92,6 +93,8 @@ applications:
       claude:
         commands:
           start: php bin/console messenger:consume claude --time-limit=3600 --memory-limit=512M
+        relationships:
+          vault_kms: 'vault_kms:api-keys'
         mounts:
           '/var': { source: storage, source_path: var }
 
@@ -116,6 +119,15 @@ services:
 
   audio-storage:
     type: network-storage:2.0
+
+  vault_kms:
+    type: vault-kms:1.12
+    configuration:
+      endpoints:
+        api-keys:
+          - policy: transit
+            key: api-keys
+            type: aes256-gcm96
 
 routes:
   'https://{default}/':
