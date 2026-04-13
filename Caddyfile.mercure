@@ -9,7 +9,7 @@
 		transport_url bolt:///tmp/mercure.db
 		publisher_jwt !ChangeThisMercureHubJWTSecretKey!
 		subscriber_jwt !ChangeThisMercureHubJWTSecretKey!
-		cors_origins http://127.0.0.1:8000
+		cors_origins http://localhost:8000 http://127.0.0.1:8000
 		publish_origins *
 		anonymous
 	}
