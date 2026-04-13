@@ -63,34 +63,30 @@ final class RunCiHandler
             }
             $this->logger->info('Source operation completed');
 
-            // Set CI_RUN=1 env var — this triggers a rebuild that includes
-            // dev dependencies and runs phpunit during the build phase
-            $this->logger->info('Setting CI_RUN variable to trigger test build...');
-            $ciEnv->setVariable('env:CI_RUN', '1');
-
-            // Wait for the rebuild triggered by the variable change
-            sleep(5); // Give Upsun a moment to start the activity
+            // The source operation triggers a rebuild + deploy.
+            // The post_deploy hook runs phpunit on non-production environments.
+            // Wait for the deploy activity to complete.
+            sleep(5);
             $ciEnv->refresh();
-            $buildActivity = null;
+            $deployActivity = null;
             foreach ($ciEnv->getActivities() as $act) {
                 if (!$act->isComplete()) {
-                    $buildActivity = $act;
+                    $deployActivity = $act;
                     break;
                 }
             }
 
-            if ($buildActivity !== null) {
-                $this->logger->info('Waiting for CI build...', ['activity' => $buildActivity->id]);
-                $buildActivity->wait(null, null, 5);
-                $buildActivity->refresh();
+            if ($deployActivity !== null) {
+                $this->logger->info('Waiting for deploy (tests run in post_deploy)...', ['activity' => $deployActivity->id]);
+                $deployActivity->wait(null, null, 5);
+                $deployActivity->refresh();
 
-                if ($buildActivity->result === 'success') {
+                if ($deployActivity->result === 'success') {
                     $this->logger->info('CI passed, merging to main');
                     $ciEnv->refresh();
                     $mergeActivity = $ciEnv->merge();
                     $mergeActivity->wait(null, null, 5);
 
-                    // Deactivate and delete
                     $ciEnv->refresh();
                     if ($ciEnv->isActive()) {
                         $deactivateActivity = $ciEnv->deactivate();
@@ -100,13 +96,13 @@ final class RunCiHandler
                     $ciEnv->delete();
                     $this->logger->info('Merged and cleaned up');
                 } else {
-                    $this->logger->error('CI build failed', [
+                    $this->logger->error('CI failed (tests failed in post_deploy)', [
                         'branch' => $branchName,
-                        'result' => $buildActivity->result,
+                        'result' => $deployActivity->result,
                     ]);
                 }
             } else {
-                $this->logger->error('No rebuild activity found after setting CI_RUN');
+                $this->logger->error('No deploy activity found after source operation');
             }
         } catch (\Throwable $e) {
             $this->logger->error('CI run failed with exception', [
