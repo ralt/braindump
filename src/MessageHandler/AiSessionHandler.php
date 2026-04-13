@@ -276,11 +276,13 @@ final class AiSessionHandler implements LoggerAwareInterface
 
     private function publishOutput(string $topic, string $data): void
     {
+        error_log('[AiSession] Publishing to topic=' . $topic . ' len=' . strlen($data));
         try {
-            $this->hub->publish(new Update(
+            $id = $this->hub->publish(new Update(
                 $topic,
                 json_encode(['output' => $data]),
             ));
+            error_log('[AiSession] Published OK id=' . $id);
         } catch (\Throwable $e) {
             error_log('[AiSession] Mercure publish error: ' . $e->getMessage());
         }
