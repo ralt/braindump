@@ -91,6 +91,7 @@ applications:
           start: php bin/console messenger:consume ai-session --time-limit=3600 --memory-limit=512M
         mounts:
           '/var': { source: storage, source_path: var }
+          '/.pi': { source: storage, source_path: pi }
 
     crons:
       weekly_ci:
