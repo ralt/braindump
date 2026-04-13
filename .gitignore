@@ -19,3 +19,11 @@
 /assets/vendor/
 ###< symfony/asset-mapper ###
 storage/
+
+###> local mercure ###
+/mercure
+/Caddyfile
+/dev.Caddyfile
+/COPYRIGHT
+/LICENSE
+###< local mercure ###

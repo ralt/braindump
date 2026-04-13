@@ -1,0 +1,18 @@
+{
+	order mercure after encode
+	auto_https off
+	admin off
+}
+
+:3000 {
+	mercure {
+		transport_url bolt:///tmp/mercure.db
+		publisher_jwt !ChangeThisMercureHubJWTSecretKey!
+		subscriber_jwt !ChangeThisMercureHubJWTSecretKey!
+		cors_origins http://127.0.0.1:8000
+		publish_origins *
+		anonymous
+	}
+
+	respond /healthz 200
+}
