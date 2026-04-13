@@ -9,6 +9,7 @@ use App\Enum\ClaudeSessionStatus;
 use App\Message\StartClaudeSessionMessage;
 use App\Service\ApiKeyEncryptorInterface;
 use Doctrine\ORM\EntityManagerInterface;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\Mercure\HubInterface;
 use Symfony\Component\Mercure\Update;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
@@ -20,6 +21,7 @@ final class ClaudeSessionHandler
         private EntityManagerInterface $em,
         private HubInterface $hub,
         private ApiKeyEncryptorInterface $encryptor,
+        private LoggerInterface $logger,
     ) {}
 
     public function __invoke(StartClaudeSessionMessage $message): void
@@ -96,6 +98,13 @@ final class ClaudeSessionHandler
             escapeshellarg($claudeBin),
             escapeshellarg($initialPrompt)
         );
+
+        $this->logger->info('Starting Claude process', [
+            'session' => (string) $session->getId(),
+            'recording' => (string) $recording->getId(),
+            'user' => $user->getEmail(),
+            'cmd' => $cmd,
+        ]);
 
         $process = proc_open($cmd, $descriptors, $pipes, $tmpDir);
 
