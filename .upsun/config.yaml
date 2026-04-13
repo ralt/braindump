@@ -59,6 +59,8 @@ applications:
         source_path: audio
 
     web:
+      commands:
+        pre_start: symfony-deploy
       locations:
         '/':
           root: 'public'
@@ -78,7 +80,7 @@ applications:
     workers:
       transcription:
         commands:
-          start: . /app/.environment && php bin/console messenger:consume async --time-limit=3600 --memory-limit=256M
+          start: php bin/console messenger:consume async --time-limit=3600 --memory-limit=256M
         mounts:
           '/var': { source: storage, source_path: var }
           '/storage/audio':
@@ -88,7 +90,7 @@ applications:
 
       ai-session:
         commands:
-          start: . /app/.environment && php bin/console messenger:consume ai-session --time-limit=3600 --memory-limit=512M
+          start: php bin/console messenger:consume ai-session --time-limit=3600 --memory-limit=512M
         mounts:
           '/var': { source: storage, source_path: var }
           '/.pi': { source: storage, source_path: pi }
