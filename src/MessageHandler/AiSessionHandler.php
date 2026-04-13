@@ -96,10 +96,17 @@ final class AiSessionHandler implements LoggerAwareInterface
             return;
         }
 
+        // Per-user pi.dev agent directory for session/config isolation
+        $piAgentDir = $tmpDir . '/pi-agent';
+        if (!is_dir($piAgentDir)) {
+            mkdir($piAgentDir, 0755, true);
+        }
+
         // Set env vars for the child process, then pass null to proc_open
         // to inherit the full parent environment.
         putenv($envVar . '=' . $apiKey);
         putenv('TMPDIR=' . $tmpDir);
+        putenv('PI_CODING_AGENT_DIR=' . $piAgentDir);
 
         // Use PTY so pi.dev sees a real terminal (enables colors, cursor, ANSI)
         $descriptors = [
@@ -113,9 +120,15 @@ final class AiSessionHandler implements LoggerAwareInterface
             $transcriptionPath
         );
 
+        $sessionDir = $tmpDir . '/sessions';
+        if (!is_dir($sessionDir)) {
+            mkdir($sessionDir, 0755, true);
+        }
+
         $cmd = sprintf(
-            '%s --verbose %s',
+            '%s --verbose --session-dir %s %s',
             escapeshellarg($piBin),
+            escapeshellarg($sessionDir),
             escapeshellarg($initialPrompt)
         );
 
@@ -246,6 +259,7 @@ final class AiSessionHandler implements LoggerAwareInterface
         // Cleanup
         putenv($envVar);
         putenv('TMPDIR');
+        putenv('PI_CODING_AGENT_DIR');
         @fclose($ptyMaster);
         @fclose($stderr);
         proc_close($process);
