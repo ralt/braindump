@@ -2,6 +2,7 @@
 
 namespace App\Search;
 
+use Doctrine\DBAL\Platforms\SQLitePlatform;
 use Doctrine\ORM\EntityManagerInterface;
 use Elastic\Elasticsearch\ClientBuilder;
 
@@ -18,8 +19,18 @@ class SearchProviderFactory
     {
         return match ($this->searchProvider) {
             'opensearch' => $this->createOpenSearchProvider(),
-            default => new PostgresSearchProvider($this->em),
+            default => $this->createDefaultProvider(),
         };
+    }
+
+    private function createDefaultProvider(): SearchProviderInterface
+    {
+        $platform = $this->em->getConnection()->getDatabasePlatform();
+        if ($platform instanceof SQLitePlatform) {
+            return new SqliteSearchProvider($this->em);
+        }
+
+        return new PostgresSearchProvider($this->em);
     }
 
     private function createOpenSearchProvider(): OpenSearchProvider
