@@ -17,6 +17,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Uid\Uuid;
+use Psr\Log\LoggerInterface;
 
 class RecordingController extends AbstractController
 {
@@ -26,6 +27,7 @@ class RecordingController extends AbstractController
         private MessageBusInterface $bus,
         private SearchProviderInterface $searchProvider,
         private string $audioStoragePath,
+        private LoggerInterface $logger,
     ) {}
 
     #[Route('/', name: 'app_recording_index')]
@@ -91,7 +93,24 @@ class RecordingController extends AbstractController
         $filename = $recording->getId() . '.webm';
         $recording->setAudioFilePath($filename);
 
+        $this->logger->info('Moving audio file', [
+            'from' => $audioFile->getPathname(),
+            'to_dir' => $this->audioStoragePath,
+            'filename' => $filename,
+            'dir_exists' => is_dir($this->audioStoragePath),
+            'dir_writable' => is_writable($this->audioStoragePath),
+        ]);
+
         $audioFile->move($this->audioStoragePath, $filename);
+
+        $targetPath = $this->audioStoragePath . '/' . $filename;
+        $this->logger->info('Audio file moved', [
+            'target' => $targetPath,
+            'exists' => file_exists($targetPath),
+            'readable' => is_readable($targetPath),
+            'size' => file_exists($targetPath) ? filesize($targetPath) : null,
+            'dir_contents' => scandir($this->audioStoragePath),
+        ]);
 
         $this->em->persist($recording);
         $this->em->flush();
