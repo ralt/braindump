@@ -4,9 +4,9 @@ namespace App\Tests\Controller;
 
 use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
-use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use App\Tests\DatabaseTestCase;
 
-class UserSettingsControllerTest extends WebTestCase
+class UserSettingsControllerTest extends DatabaseTestCase
 {
     public function testSettingsPageRendersForAuthenticatedUser(): void
     {

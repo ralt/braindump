@@ -5,11 +5,11 @@ namespace App\Tests\Controller;
 use App\Entity\Recording;
 use App\Entity\User;
 use App\Enum\RecordingStatus;
+use App\Tests\DatabaseTestCase;
 use Doctrine\ORM\EntityManagerInterface;
-use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 
-class RecordingControllerTest extends WebTestCase
+class RecordingControllerTest extends DatabaseTestCase
 {
     private function createUser(EntityManagerInterface $em, string $email = 'test@example.com'): User
     {
@@ -30,11 +30,20 @@ class RecordingControllerTest extends WebTestCase
         $recording = new Recording();
         $recording->setOwner($owner);
         $recording->setTitle('Test Recording');
-        $recording->setAudioFilePath('test.webm');
         $recording->setMimeType('audio/webm');
-        $recording->setFileSizeBytes(1024);
+        $recording->setFileSizeBytes(0);
         $recording->setStatus($status);
         $recording->setTranscription('Test transcription text');
+
+        $filename = $recording->getId() . '.webm';
+        $recording->setAudioFilePath($filename);
+
+        $audioDir = static::getContainer()->getParameter('app.audio_storage_path');
+        if (!is_dir($audioDir)) {
+            mkdir($audioDir, 0777, true);
+        }
+        touch($audioDir . '/' . $filename);
+
         $em->persist($recording);
         $em->flush();
 
@@ -108,18 +117,23 @@ class RecordingControllerTest extends WebTestCase
         $em = static::getContainer()->get(EntityManagerInterface::class);
         $user = $this->createUser($em);
         $recording = $this->createRecording($em, $user, RecordingStatus::Failed);
+        $recordingId = $recording->getId();
         $recording->setErrorMessage('API error');
         $em->flush();
 
         $client->loginUser($user);
 
-        $csrfToken = static::getContainer()->get('security.csrf.token_manager')->getToken('retry')->getValue();
-        $client->request('POST', '/api/recordings/' . $recording->getId() . '/retry', [
+        // Load the show page to get the CSRF token from the retry form
+        $crawler = $client->request('GET', '/recordings/' . $recordingId);
+        $csrfToken = $crawler->filter('form input[name="_token"]')->first()->attr('value');
+        $client->request('POST', '/api/recordings/' . $recordingId . '/retry', [
             '_token' => $csrfToken,
         ]);
 
         $this->assertResponseRedirects();
-        $em->refresh($recording);
+        // Re-fetch entity from fresh EM since the request resets the container
+        $freshEm = static::getContainer()->get(EntityManagerInterface::class);
+        $recording = $freshEm->find(Recording::class, $recordingId);
         $this->assertEquals(RecordingStatus::Pending, $recording->getStatus());
     }
 
@@ -128,17 +142,31 @@ class RecordingControllerTest extends WebTestCase
         $client = static::createClient();
         $em = static::getContainer()->get(EntityManagerInterface::class);
         $user = $this->createUser($em);
-        $recording = $this->createRecording($em, $user, RecordingStatus::Completed);
+        // Create as Failed so the show page renders the retry form with CSRF token
+        $recording = $this->createRecording($em, $user, RecordingStatus::Failed);
+        $recordingId = $recording->getId();
+        $recording->setErrorMessage('Test error');
+        $em->flush();
 
         $client->loginUser($user);
 
-        $csrfToken = static::getContainer()->get('security.csrf.token_manager')->getToken('retry')->getValue();
-        $client->request('POST', '/api/recordings/' . $recording->getId() . '/retry', [
+        // Get CSRF token from the retry form on the show page
+        $crawler = $client->request('GET', '/recordings/' . $recordingId);
+        $csrfToken = $crawler->filter('form input[name="_token"]')->first()->attr('value');
+
+        // Now change status to Completed before posting retry
+        $freshEm = static::getContainer()->get(EntityManagerInterface::class);
+        $recording = $freshEm->find(Recording::class, $recordingId);
+        $recording->setStatus(RecordingStatus::Completed);
+        $freshEm->flush();
+
+        $client->request('POST', '/api/recordings/' . $recordingId . '/retry', [
             '_token' => $csrfToken,
         ]);
 
         $this->assertResponseRedirects();
-        $em->refresh($recording);
+        $freshEm2 = static::getContainer()->get(EntityManagerInterface::class);
+        $recording = $freshEm2->find(Recording::class, $recordingId);
         $this->assertEquals(RecordingStatus::Completed, $recording->getStatus());
     }
 

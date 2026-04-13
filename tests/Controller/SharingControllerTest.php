@@ -6,9 +6,9 @@ use App\Entity\Recording;
 use App\Entity\User;
 use App\Enum\RecordingStatus;
 use Doctrine\ORM\EntityManagerInterface;
-use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use App\Tests\DatabaseTestCase;
 
-class SharingControllerTest extends WebTestCase
+class SharingControllerTest extends DatabaseTestCase
 {
     private function createUser(EntityManagerInterface $em, string $email): User
     {
@@ -29,10 +29,19 @@ class SharingControllerTest extends WebTestCase
         $recording = new Recording();
         $recording->setOwner($owner);
         $recording->setTitle('Test Recording');
-        $recording->setAudioFilePath('test.webm');
         $recording->setMimeType('audio/webm');
-        $recording->setFileSizeBytes(1024);
+        $recording->setFileSizeBytes(0);
         $recording->setStatus(RecordingStatus::Completed);
+
+        $filename = $recording->getId() . '.webm';
+        $recording->setAudioFilePath($filename);
+
+        $audioDir = static::getContainer()->getParameter('app.audio_storage_path');
+        if (!is_dir($audioDir)) {
+            mkdir($audioDir, 0777, true);
+        }
+        touch($audioDir . '/' . $filename);
+
         $em->persist($recording);
         $em->flush();
 
