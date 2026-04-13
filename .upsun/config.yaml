@@ -34,12 +34,10 @@ applications:
 
     hooks:
       build: |
-        set -x -e
+        set -euo pipefail
         curl -fs https://get.symfony.com/cloud/configurator | bash
         symfony-build
-      deploy: |
-        set -x -e
-        symfony-deploy
+      deploy: symfony-deploy
       post_deploy: |
         set -e
         if [ "$PLATFORM_ENVIRONMENT_TYPE" != "production" ]; then
