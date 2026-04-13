@@ -104,16 +104,21 @@ final class ClaudeSessionHandler implements LoggerAwareInterface
             escapeshellarg($initialPrompt)
         );
 
-        $this->logger->info('Starting Claude process', [
+        $this->log('Starting Claude process', [
             'session' => (string) $session->getId(),
             'recording' => (string) $recording->getId(),
             'user' => $user->getEmail(),
+            'claudeBin' => $claudeBin,
             'cmd' => $cmd,
+            'tmpDir' => $tmpDir,
         ]);
+
+        $this->publishOutput($topic, "Launching claude...\r\n");
 
         $process = proc_open($cmd, $descriptors, $pipes, $tmpDir);
 
         if (!is_resource($process)) {
+            $this->log('Failed to start Claude process');
             $this->publishOutput($topic, "\r\nError: Could not start Claude process\r\n");
             $session->setStatus(ClaudeSessionStatus::Closed);
             $session->setClosedAt(new \DateTimeImmutable());
@@ -159,6 +164,11 @@ final class ClaudeSessionHandler implements LoggerAwareInterface
                 if ($remaining) {
                     $this->publishOutput($topic, $remaining);
                 }
+                $this->log('Claude process exited', [
+                    'exitcode' => $status['exitcode'],
+                    'signaled' => $status['signaled'],
+                    'termsig' => $status['termsig'],
+                ]);
                 $running = false;
                 break;
             }
@@ -230,6 +240,14 @@ final class ClaudeSessionHandler implements LoggerAwareInterface
         } catch (\Throwable) {
             // Mercure may not be available
         }
+    }
+
+    private function log(string $message, array $context = []): void
+    {
+        $this->logger->info($message, $context);
+        // Also write to stderr so it always appears in Upsun logs
+        // (prod monolog uses fingers_crossed which may swallow INFO)
+        error_log('[ClaudeSession] ' . $message . ' ' . json_encode($context));
     }
 
     private function cleanupDir(string $dir): void
