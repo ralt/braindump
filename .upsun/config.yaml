@@ -60,7 +60,7 @@ applications:
 
     web:
       commands:
-        pre_start: symfony-deploy
+        pre_start: symfony-pre-start
       locations:
         '/':
           root: 'public'
