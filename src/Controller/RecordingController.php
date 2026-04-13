@@ -93,7 +93,7 @@ class RecordingController extends AbstractController
         $filename = $recording->getId() . '.webm';
         $recording->setAudioFilePath($filename);
 
-        $this->logger->info('Moving audio file', [
+        $this->logger->error('[DIAG] Moving audio file', [
             'from' => $audioFile->getPathname(),
             'to_dir' => $this->audioStoragePath,
             'filename' => $filename,
@@ -104,7 +104,7 @@ class RecordingController extends AbstractController
         $audioFile->move($this->audioStoragePath, $filename);
 
         $targetPath = $this->audioStoragePath . '/' . $filename;
-        $this->logger->info('Audio file moved', [
+        $this->logger->error('[DIAG] Audio file moved', [
             'target' => $targetPath,
             'exists' => file_exists($targetPath),
             'readable' => is_readable($targetPath),

@@ -40,7 +40,7 @@ final class TranscribeRecordingHandler
         try {
             $audioPath = $this->audioStoragePath . '/' . $recording->getAudioFilePath();
 
-            $this->logger->info('Transcription worker reading audio file', [
+            $this->logger->error('[DIAG] Transcription worker reading audio file', [
                 'path' => $audioPath,
                 'exists' => file_exists($audioPath),
                 'readable' => is_readable($audioPath),
