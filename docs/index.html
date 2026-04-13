@@ -443,7 +443,7 @@
             </div>
             <div class="setup-step">
                 <h3>Run</h3>
-                <div class="code-block"><span class="comment"># Web server</span><br><span class="cmd">symfony server:start</span><br><br><span class="comment"># Transcription worker</span><br><span class="cmd">php bin/console</span> messenger:consume async</div>
+                <div class="code-block"><span class="comment"># Web server</span><br><span class="cmd">symfony server:start</span><br><br><span class="comment"># Local Mercure hub</span><br><span class="cmd">./mercure run</span> --config Caddyfile.mercure --adapter caddyfile<br><br><span class="comment"># Transcription worker</span><br><span class="cmd">php bin/console</span> messenger:consume async --sleep=60<br><br><span class="comment"># Claude session worker</span><br><span class="cmd">php bin/console</span> messenger:consume claude --sleep=60</div>
                 <p>Or deploy to Upsun: <code>upsun push</code></p>
             </div>
         </div>
