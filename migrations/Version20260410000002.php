@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace DoctrineMigrations;
 
+use Doctrine\DBAL\Platforms\PostgreSQLPlatform;
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\Migrations\AbstractMigration;
 
@@ -16,6 +17,11 @@ final class Version20260410000002 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
+        if (!$this->connection->getDatabasePlatform() instanceof PostgreSQLPlatform) {
+            $this->write('Skipping PostgreSQL full-text search on non-PostgreSQL database');
+            return;
+        }
+
         $this->addSql('ALTER TABLE recording ADD COLUMN search_vector tsvector');
         $this->addSql('CREATE INDEX idx_recording_search ON recording USING GIN(search_vector)');
 
@@ -39,6 +45,10 @@ final class Version20260410000002 extends AbstractMigration
 
     public function down(Schema $schema): void
     {
+        if (!$this->connection->getDatabasePlatform() instanceof PostgreSQLPlatform) {
+            return;
+        }
+
         $this->addSql('DROP TRIGGER IF EXISTS trg_recording_search ON recording');
         $this->addSql('DROP FUNCTION IF EXISTS recording_search_update()');
         $this->addSql('DROP INDEX IF EXISTS idx_recording_search');
