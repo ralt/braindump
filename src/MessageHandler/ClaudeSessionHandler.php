@@ -74,10 +74,11 @@ final class ClaudeSessionHandler
             return;
         }
 
-        $env = array_merge($_SERVER, $_ENV, [
-            'ANTHROPIC_API_KEY' => $apiKey,
-            'TMPDIR' => $tmpDir,
-        ]);
+        // Set env vars for the child process, then pass null to proc_open
+        // to inherit the full parent environment (passing an array replaces it entirely,
+        // and $_SERVER/$_ENV in Symfony contain non-string values that break proc_open).
+        putenv('ANTHROPIC_API_KEY=' . $apiKey);
+        putenv('TMPDIR=' . $tmpDir);
 
         $descriptors = [
             0 => ['pipe', 'r'], // stdin
@@ -96,7 +97,7 @@ final class ClaudeSessionHandler
             escapeshellarg($initialPrompt)
         );
 
-        $process = proc_open($cmd, $descriptors, $pipes, $tmpDir, $env);
+        $process = proc_open($cmd, $descriptors, $pipes, $tmpDir);
 
         if (!is_resource($process)) {
             $this->publishOutput($topic, "\r\nError: Could not start Claude process\r\n");
@@ -184,6 +185,8 @@ final class ClaudeSessionHandler
         }
 
         // Cleanup
+        putenv('ANTHROPIC_API_KEY');
+        putenv('TMPDIR');
         fclose($pipes[0]);
         fclose($pipes[1]);
         fclose($pipes[2]);
