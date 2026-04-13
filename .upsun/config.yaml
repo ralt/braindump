@@ -34,7 +34,7 @@ applications:
 
     hooks:
       build: |
-        set -euo pipefail
+        set -e
         curl -fs https://get.symfony.com/cloud/configurator | bash
         symfony-build
       deploy: symfony-deploy
