@@ -3,11 +3,11 @@
 {% block title %}Settings - Braindump{% endblock %}
 
 {% block body %}
-    <h1 style="margin-bottom: 1.5rem;">Settings</h1>
+    <h1 class="mb-2">Settings</h1>
 
     <div class="card">
-        <h2 style="margin-bottom: 0.5rem;">Claude API Key</h2>
-        <p class="text-muted" style="margin-bottom: 1.25rem;">Enter your Anthropic API key to use Claude Code sessions. Your key is stored encrypted.</p>
+        <h2 class="mb-1">Claude API Key</h2>
+        <p class="text-muted mb-1">Enter your Anthropic API key to use Claude Code sessions. Your key is stored encrypted.</p>
 
         <form method="post">
             <div class="form-group">
@@ -16,7 +16,7 @@
                        placeholder="{% if hasApiKey %}Key is set (enter new value to replace){% else %}sk-ant-...{% endif %}">
             </div>
             {% if hasApiKey %}
-                <p style="color: #166534; font-size: 0.8rem; margin-bottom: 1rem;">An API key is currently configured. Submit an empty value to remove it.</p>
+                <p class="text-success mb-1">An API key is currently configured. Submit an empty value to remove it.</p>
             {% endif %}
             <button type="submit" class="btn btn-primary">Save</button>
         </form>

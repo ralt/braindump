@@ -5,40 +5,86 @@ export default class extends Controller {
     static values = {
         statusUrl: String,
         status: String,
+        mercureUrl: String,
     }
+
+    eventSource = null
 
     connect() {
         if (this.statusValue === 'pending' || this.statusValue === 'transcribing') {
-            this.poll()
+            this.subscribe()
         }
     }
 
-    poll() {
-        this.interval = setInterval(async () => {
-            try {
-                const response = await fetch(this.statusUrlValue)
-                const data = await response.json()
+    subscribe() {
+        if (!this.mercureUrlValue) return
 
-                if (data.status !== this.statusValue) {
-                    this.statusValue = data.status
-                    this.badgeTarget.textContent = data.status
-                    this.badgeTarget.className = `badge badge-${data.status}`
+        this.eventSource = new EventSource(this.mercureUrlValue)
 
-                    if (data.status === 'completed' || data.status === 'failed') {
-                        clearInterval(this.interval)
-                        // Reload the page to show the transcription
-                        window.location.reload()
-                    }
+        this.eventSource.onmessage = (event) => {
+            const data = JSON.parse(event.data)
+
+            if (data.status && data.status !== this.statusValue) {
+                this.statusValue = data.status
+                this.badgeTarget.textContent = data.status
+                this.badgeTarget.className = `badge badge-${data.status}`
+
+                if (data.status === 'completed' && data.transcription) {
+                    this.showTranscription(data.transcription)
+                    this.close()
+                } else if (data.status === 'failed') {
+                    window.location.reload()
                 }
-            } catch (err) {
-                // silently retry
             }
-        }, 3000)
+        }
+
+        this.eventSource.onerror = () => {
+            // On SSE error, fall back to a single poll after a delay
+            this.close()
+            setTimeout(() => this.fallbackPoll(), 5000)
+        }
+    }
+
+    showTranscription(text) {
+        if (!this.hasTranscriptionAreaTarget) return
+
+        this.transcriptionAreaTarget.innerHTML =
+            '<h2 class="mb-1">Transcription</h2>' +
+            '<div class="transcription-text">' + this.escapeHtml(text) + '</div>'
+        this.transcriptionAreaTarget.className = 'card'
+    }
+
+    escapeHtml(text) {
+        const div = document.createElement('div')
+        div.textContent = text
+        return div.innerHTML
+    }
+
+    async fallbackPoll() {
+        try {
+            const response = await fetch(this.statusUrlValue)
+            const data = await response.json()
+
+            if (data.status === 'completed' || data.status === 'failed') {
+                window.location.reload()
+            } else {
+                // Still in progress, try SSE again
+                this.subscribe()
+            }
+        } catch {
+            // Retry SSE
+            this.subscribe()
+        }
+    }
+
+    close() {
+        if (this.eventSource) {
+            this.eventSource.close()
+            this.eventSource = null
+        }
     }
 
     disconnect() {
-        if (this.interval) {
-            clearInterval(this.interval)
-        }
+        this.close()
     }
 }

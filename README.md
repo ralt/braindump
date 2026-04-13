@@ -61,7 +61,7 @@ Copy `.env` to `.env.local` and configure:
 DATABASE_URL="postgresql://user:password@127.0.0.1:5432/braindump?serverVersion=16&charset=utf8"
 
 # OpenAI (for transcription)
-OPENAI_API_KEY=sk-...
+OPENAI_WHISPER_API_KEY=sk-...
 
 # Mercure (for local dev, use the Symfony CLI built-in hub)
 MERCURE_URL=http://localhost:3000/.well-known/mercure
@@ -105,7 +105,7 @@ php bin/console messenger:consume claude --time-limit=3600
 | Variable | Description | Default |
 |---|---|---|
 | `DATABASE_URL` | PostgreSQL connection string | — |
-| `OPENAI_API_KEY` | OpenAI API key for Whisper transcription | — |
+| `OPENAI_WHISPER_API_KEY` | OpenAI API key for Whisper transcription | — |
 | `MERCURE_URL` | Mercure hub URL (server-side) | — |
 | `MERCURE_PUBLIC_URL` | Mercure hub URL (browser-side) | — |
 | `MERCURE_JWT_SECRET` | JWT secret for Mercure | — |

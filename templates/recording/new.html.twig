@@ -3,7 +3,7 @@
 {% block title %}New Recording - Braindump{% endblock %}
 
 {% block body %}
-    <h1 style="margin-bottom: 1.5rem;">New Recording</h1>
+    <h1 class="mb-2">New Recording</h1>
 
     <div class="card" {{ stimulus_controller('audio-recorder', {
         uploadUrl: path('api_recording_upload'),
@@ -26,11 +26,21 @@
             <button class="btn btn-danger" {{ stimulus_action('audio-recorder', 'stop') }} {{ stimulus_target('audio-recorder', 'stopBtn') }} disabled>Stop</button>
         </div>
 
-        <div {{ stimulus_target('audio-recorder', 'status') }} style="display: none;" class="alert">
+        <canvas {{ stimulus_target('audio-recorder', 'waveform') }} class="waveform-canvas hidden"></canvas>
+
+        <div {{ stimulus_target('audio-recorder', 'status') }} class="alert hidden">
             <span {{ stimulus_target('audio-recorder', 'timer') }}>00:00</span>
             <span {{ stimulus_target('audio-recorder', 'fileSize') }}></span>
         </div>
 
-        <div {{ stimulus_target('audio-recorder', 'uploadStatus') }} style="display: none;" class="alert alert-success"></div>
+        <div {{ stimulus_target('audio-recorder', 'sizeWarning') }} class="alert alert-warning hidden">
+            Approaching recording limit — consider wrapping up soon.
+        </div>
+
+        <div {{ stimulus_target('audio-recorder', 'sizeWarningUrgent') }} class="alert alert-warning-urgent hidden">
+            Almost at recording limit — recording will stop soon.
+        </div>
+
+        <div {{ stimulus_target('audio-recorder', 'uploadStatus') }} class="alert alert-success hidden"></div>
     </div>
 {% endblock %}

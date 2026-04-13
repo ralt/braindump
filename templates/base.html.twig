@@ -111,15 +111,70 @@
                 h2 { font-size: 1.125rem; font-weight: 600; color: #111; }
                 h3 { font-size: 1rem; font-weight: 600; color: #111; }
 
+                /* Alerts (continued) */
+                .alert-warning { background: #fef9c3; color: #854d0e; border: 1px solid #fde68a; }
+                .alert-warning-urgent { background: #ffedd5; color: #9a3412; border: 1px solid #fdba74; }
+
                 /* Utilities */
                 .flex { display: flex; }
                 .flex-between { justify-content: space-between; }
                 .flex-center { align-items: center; }
                 .flex-wrap { flex-wrap: wrap; }
                 .gap-1 { gap: 0.5rem; }
+                .gap-separator { color: #d1d5db; }
                 .mb-1 { margin-bottom: 1rem; }
+                .mb-2 { margin-bottom: 1.5rem; }
                 .mt-1 { margin-top: 1rem; }
                 .text-muted { color: #6b7280; font-size: 0.875rem; }
+                .text-center { text-align: center; }
+                .text-success { color: #166534; font-size: 0.8rem; }
+                .p-0 { padding: 0; }
+                .p-section { padding: 3rem 1.5rem; }
+                .overflow-hidden { overflow: hidden; }
+                .w-full { width: 100%; }
+                .justify-center { justify-content: center; }
+                .inline { display: inline; }
+                .hidden { display: none; }
+
+                /* Layout components */
+                .login-wrapper { max-width: 380px; margin: 6rem auto; }
+                .login-header { text-align: center; margin-bottom: 2rem; }
+                .login-header h1 { font-size: 1.75rem; }
+                .empty-state { text-align: center; padding: 3rem 1.5rem; }
+                .card-flush { padding: 0; overflow: hidden; }
+                .card-section { padding: 1.5rem 1.5rem 0; }
+                .input-inline {
+                    flex: 1;
+                    padding: 0.5rem 0.75rem;
+                    border: 1px solid #d1d5db;
+                    border-radius: 8px;
+                    font-size: 0.875rem;
+                    color: #111;
+                    background: #fff;
+                }
+                .input-inline:focus {
+                    outline: none;
+                    border-color: #4361ee;
+                    box-shadow: 0 0 0 3px rgba(67,97,238,0.1);
+                }
+                .select-inline {
+                    padding: 0.5rem 0.75rem;
+                    border: 1px solid #d1d5db;
+                    border-radius: 8px;
+                    font-size: 0.875rem;
+                }
+                .nav-muted { color: #9ca3af; }
+                .meta-info { font-size: 0.875rem; color: #6b7280; }
+                .transcription-text { white-space: pre-wrap; line-height: 1.7; font-size: 0.9375rem; color: #374151; }
+
+                /* Waveform */
+                .waveform-canvas {
+                    width: 100%;
+                    height: 80px;
+                    border-radius: 8px;
+                    background: #f9fafb;
+                    margin-bottom: 1rem;
+                }
             </style>
         {% endblock %}
 
@@ -138,7 +193,7 @@
                 {% if is_granted('ROLE_ADMIN') %}
                     <a href="{{ path('admin') }}">Admin</a>
                 {% endif %}
-                <a href="{{ path('app_logout') }}" style="color: #9ca3af;">Logout</a>
+                <a href="{{ path('app_logout') }}" class="nav-muted">Logout</a>
             </div>
         </nav>
         {% endif %}
