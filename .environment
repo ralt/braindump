@@ -1,1 +1,21 @@
 export DATABASE_URL="postgresql://${DATABASE_USERNAME}:${DATABASE_PASSWORD}@${DATABASE_HOST}:${DATABASE_PORT}/${DATABASE_PATH}?serverVersion=16&charset=utf8"
+
+# Mercure — build Symfony-expected env vars from Upsun relationship vars
+if [ -n "${MERCURE_HOST:-}" ]; then
+  export MERCURE_URL="${MERCURE_SCHEME}://${MERCURE_HOST}:${MERCURE_PORT}/.well-known/mercure"
+  export MERCURE_JWT_SECRET="${MERCURE_PASSWORD}"
+
+  # Extract the public Mercure URL from PLATFORM_ROUTES
+  # The route matching "mercure.{default}" is the public-facing Mercure endpoint
+  if [ -n "${PLATFORM_ROUTES:-}" ]; then
+    MERCURE_PUBLIC_HOST=$(echo "$PLATFORM_ROUTES" | base64 -d | python3 -c "
+import sys, json
+routes = json.load(sys.stdin)
+for url, route in routes.items():
+    if route.get('original_url', '').startswith('https://mercure.') and route.get('type') == 'upstream':
+        print(url.rstrip('/'))
+        break
+")
+    export MERCURE_PUBLIC_URL="${MERCURE_PUBLIC_HOST}/.well-known/mercure"
+  fi
+fi
