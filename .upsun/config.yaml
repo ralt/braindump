@@ -131,7 +131,7 @@ routes:
     type: upstream
     upstream: 'app:http'
 
-  'https://mercure.{default}/':
+  'https://{default}/.well-known/mercure':
     type: upstream
     upstream: 'mercure:mercure'
     cache:
