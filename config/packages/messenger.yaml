@@ -18,6 +18,12 @@ framework:
                 retry_strategy:
                     max_retries: 1
                     multiplier: 2
+            ci:
+                dsn: '%env(MESSENGER_TRANSPORT_DSN)%?queue_name=ci'
+                options:
+                    use_notify: true
+                retry_strategy:
+                    max_retries: 0
             failed: 'doctrine://default?queue_name=failed'
 
         default_bus: messenger.bus.default
@@ -31,3 +37,4 @@ framework:
             Symfony\Component\Notifier\Message\SmsMessage: async
             App\Message\TranscribeRecordingMessage: async
             App\Message\StartClaudeSessionMessage: claude
+            App\Message\RunCiMessage: ci

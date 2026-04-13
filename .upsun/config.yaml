@@ -27,6 +27,7 @@ applications:
         composer install --no-dev --optimize-autoloader --no-interaction
         php bin/console asset-map:compile
         php bin/console importmap:install
+        curl -fsSL https://raw.githubusercontent.com/platformsh/cli/main/installer.sh | VENDOR=upsun bash
       deploy: |
         set -e
         php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration
@@ -76,6 +77,18 @@ applications:
           start: php bin/console messenger:consume claude --time-limit=3600 --memory-limit=512M
         mounts:
           '/var': { source: storage, source_path: var }
+
+      ci:
+        commands:
+          start: php bin/console messenger:consume ci --time-limit=604800 --memory-limit=256M
+        mounts:
+          '/var': { source: storage, source_path: var }
+
+    crons:
+      weekly_ci:
+        spec: '0 3 * * 1'
+        commands:
+          start: php bin/console app:ci-run
 
 services:
   db:
