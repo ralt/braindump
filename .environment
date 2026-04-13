@@ -5,17 +5,17 @@ if [ -n "${MERCURE_HOST:-}" ]; then
   export MERCURE_URL="${MERCURE_SCHEME}://${MERCURE_HOST}:${MERCURE_PORT}/.well-known/mercure"
   export MERCURE_JWT_SECRET="${MERCURE_PASSWORD}"
 
-  # Extract the public Mercure URL from PLATFORM_ROUTES
-  # The route matching "mercure.{default}" is the public-facing Mercure endpoint
+  # Public URL: prepend "mercure." to the primary route host (matches routes config)
   if [ -n "${PLATFORM_ROUTES:-}" ]; then
-    MERCURE_PUBLIC_HOST=$(echo "$PLATFORM_ROUTES" | base64 -d | python3 -c "
+    PRIMARY_HOST=$(echo "$PLATFORM_ROUTES" | base64 -d | python3 -c "
 import sys, json
 routes = json.load(sys.stdin)
 for url, route in routes.items():
-    if route.get('original_url', '').startswith('https://mercure.') and route.get('type') == 'upstream':
-        print(url.rstrip('/'))
+    if route.get('primary'):
+        from urllib.parse import urlparse
+        print(urlparse(url).hostname)
         break
 ")
-    export MERCURE_PUBLIC_URL="${MERCURE_PUBLIC_HOST}/.well-known/mercure"
+    export MERCURE_PUBLIC_URL="https://mercure.${PRIMARY_HOST}/.well-known/mercure"
   fi
 fi
