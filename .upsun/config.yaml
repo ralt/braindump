@@ -59,24 +59,16 @@ applications:
         source_path: audio
 
     web:
-      upstream:
-        socket_family: tcp
-        protocol: http
-      commands:
-        start: frankenphp php-server --listen=localhost:$PORT --root=$PLATFORM_DOCUMENT_ROOT index.php
       locations:
         '/':
           root: 'public'
           passthru: '/index.php'
           scripts: true
           allow: true
-          request_buffering:
-            enabled: false
 
     variables:
       env:
         APP_ENV: prod
-        APP_RUNTIME: Runtime\FrankenPhpSymfony\Runtime
         SEARCH_PROVIDER: postgres
       php:
         upload_max_filesize: 26M
