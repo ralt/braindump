@@ -2,7 +2,7 @@
 
 Braindump is not a quick voice memo app. It's for the longer stuff — the 5-minute explanation of an architecture you're considering, the 15-minute walkthrough of a problem you're stuck on, the detailed brain dump you do when you need to get everything out of your head and into something searchable. The name is literal: dump your brain, then work with what comes out.
 
-Record audio in your browser, get it transcribed via OpenAI Whisper, search across all your transcriptions, share them with others, and start interactive Claude Code sessions to think through the content. Built with Symfony, deployed on Upsun.
+Record audio in your browser, get it transcribed via OpenAI Whisper, search across all your transcriptions, share them with others, and start interactive AI sessions (powered by pi.dev) to think through the content. Built with Symfony, deployed on Upsun.
 
 ## Features
 
@@ -10,7 +10,7 @@ Record audio in your browser, get it transcribed via OpenAI Whisper, search acro
 - **Automatic Transcription** — Audio is transcribed in the background via OpenAI Whisper through Symfony AI.
 - **Full-Text Search** — PostgreSQL full-text search across titles and transcriptions, with configurable OpenSearch backend.
 - **Sharing** — Share recordings with other users by email, with view or edit permissions (Google Docs-style).
-- **Claude Code Sessions** — Start an interactive Claude terminal session from your browser that reads your transcription. Each user provides their own Anthropic API key, stored encrypted via Upsun Vault KMS.
+- **AI Sessions** — Start an interactive AI terminal session (via pi.dev) from your browser that reads your transcription. Supports multiple providers (Anthropic, OpenAI, Google, Groq, Mistral, DeepSeek, xAI, OpenRouter). Each user provides their own API key, stored encrypted via Upsun Vault KMS.
 - **Admin Back-Office** — EasyAdmin dashboard for user management.
 
 ## Infrastructure Architecture
@@ -23,7 +23,7 @@ This separation means the web application stays responsive regardless of how man
 
 ### Why Mercure for real-time updates
 
-Claude Code sessions are long-lived and interactive — a user might keep a session open for 30 minutes while they work through ideas with Claude. Traditional PHP-FPM ties up one worker per open connection, and with limited workers, even a handful of concurrent sessions would starve the web application of capacity.
+AI sessions are long-lived and interactive — a user might keep a session open for 30 minutes while they work through ideas. Traditional PHP-FPM ties up one worker per open connection, and with limited workers, even a handful of concurrent sessions would starve the web application of capacity.
 
 Mercure (via Server-Sent Events) handles persistent connections with async I/O, so hundreds of concurrent sessions don't exhaust PHP workers. The web application publishes events to the Mercure hub, which efficiently fans them out to connected browsers.
 
@@ -35,7 +35,7 @@ Audio files need to be accessible by both the web application (which receives th
 
 ### Why Vault KMS for API key encryption
 
-Each user provides their own Anthropic API key for Claude sessions. These keys are sensitive credentials that must be stored encrypted at rest. On Upsun, the application uses the managed Vault KMS service for transit encryption — the key never exists in plaintext in the database or in application config. The encryption key is managed by the platform, rotated independently, and never leaves the Vault service. Locally, a plaintext encryptor is used instead (swapped via Symfony's `when@prod` service configuration).
+Each user provides their own AI provider API key for interactive sessions. These keys are sensitive credentials that must be stored encrypted at rest. On Upsun, the application uses the managed Vault KMS service for transit encryption — the key never exists in plaintext in the database or in application config. The encryption key is managed by the platform, rotated independently, and never leaves the Vault service.
 
 ### Why PostgreSQL LISTEN/NOTIFY for the message queue
 
@@ -69,7 +69,7 @@ DATABASE_URL="postgresql://user:password@127.0.0.1:5432/braindump?serverVersion=
 # OpenAI (for transcription)
 OPENAI_WHISPER_API_KEY=sk-...
 
-# Mercure (for local dev, use the Symfony CLI built-in hub)
+# Mercure (local dev — run the Mercure binary separately, see below)
 MERCURE_URL=http://localhost:3000/.well-known/mercure
 MERCURE_PUBLIC_URL=http://localhost:3000/.well-known/mercure
 MERCURE_JWT_SECRET=your-secret-here
@@ -102,8 +102,8 @@ symfony server:start
 # Transcription worker
 php bin/console messenger:consume async --time-limit=3600
 
-# Claude session worker
-php bin/console messenger:consume claude --time-limit=3600
+# AI session worker
+php bin/console messenger:consume ai-session --time-limit=3600
 
 # CI run (manually trigger dependency update + test cycle on Upsun)
 php bin/console app:ci-run
@@ -127,7 +127,7 @@ php bin/phpunit
 | `SEARCH_PROVIDER` | Search backend: `postgres` or `opensearch` | `postgres` |
 | `OPENSEARCH_URL` | OpenSearch/Elasticsearch URL | — |
 | `OPENSEARCH_INDEX` | OpenSearch index name | `braindump_recordings` |
-| `APP_SECRET` | Symfony app secret (used to encrypt API keys) | — |
+| `APP_SECRET` | Symfony app secret (used locally to encrypt API keys) | — |
 
 ## Deployment on Upsun
 
@@ -135,7 +135,7 @@ The `.upsun/config.yaml` defines the full deployment:
 
 - **Web application**: PHP 8.4 with PHP-FPM
 - **Transcription worker**: Consumes the `async` Messenger transport — runs OpenAI Whisper transcription outside the HTTP request path
-- **Claude worker**: Consumes the `claude` Messenger transport — manages long-lived interactive Claude Code sessions via `proc_open()`, streaming output through Mercure
+- **AI session worker**: Consumes the `ai-session` Messenger transport — manages long-lived interactive AI sessions (via pi.dev) using `proc_open()`, streaming output through Mercure
 - **Weekly CI cron**: Runs `app:ci-run` — creates a throwaway Upsun environment, updates dependencies, runs `phpunit`, merges to main on success
 - **PostgreSQL 16**: Primary database
 - **Mercure**: Managed real-time hub
@@ -158,6 +158,7 @@ Set environment variables via `upsun variable:create`.
 - **EasyAdmin** for back-office
 - **PostgreSQL** with full-text search
 - **Stimulus + Turbo** for frontend interactivity
-- **xterm.js** for browser-based terminal (Claude sessions)
+- **xterm.js** for browser-based terminal (AI sessions)
+- **pi.dev** for multi-provider AI coding agent
 - **Vault KMS** for API key encryption (transit encryption on Upsun)
 - **Upsun** (formerly Platform.sh) for deployment

@@ -2,7 +2,7 @@
 
 namespace App\Enum;
 
-enum ClaudeSessionStatus: string
+enum AiSessionStatus: string
 {
     case Starting = 'starting';
     case Running = 'running';

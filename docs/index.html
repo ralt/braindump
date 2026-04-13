@@ -314,7 +314,7 @@
 
 <div class="hero">
     <h1>Braindump</h1>
-    <p class="tagline">Not a quick voice memo app. Braindump is for the longer stuff &mdash; the 5-minute architecture walkthrough, the 15-minute problem deep-dive. Dump your brain, get it transcribed, then think through it with AI.</p>
+    <p class="tagline">Not a quick voice memo app. Braindump is for the longer stuff &mdash; the 5-minute architecture walkthrough, the 15-minute problem deep-dive. Dump your brain, get it transcribed, then think through it with an AI coding agent.</p>
     <a href="https://github.com/ralt/braindump" class="cta">View on GitHub</a>
 </div>
 
@@ -340,8 +340,8 @@
             </div>
             <div class="step">
                 <div class="number">4</div>
-                <h3>Think with Claude</h3>
-                <p>Start an interactive Claude Code session. Claude reads your transcription and helps you work through it.</p>
+                <h3>Think with AI</h3>
+                <p>Start an interactive AI session via pi.dev. Pick your provider &mdash; Anthropic, OpenAI, Google, and more. The agent reads your transcription and helps you work through it.</p>
             </div>
         </div>
     </section>
@@ -366,8 +366,8 @@
                 <p>Share recordings with other users by email. View or edit permissions, like Google Docs.</p>
             </div>
             <div class="feature">
-                <h3>Claude Code Sessions</h3>
-                <p>Interactive terminal in the browser via xterm.js. Claude reads your transcription and you chat with it live. Each user brings their own API key, stored encrypted via Vault KMS.</p>
+                <h3>AI Sessions (pi.dev)</h3>
+                <p>Interactive terminal in the browser via xterm.js. The AI agent reads your transcription and you chat with it live. Supports Anthropic, OpenAI, Google, Groq, Mistral, DeepSeek, xAI, and OpenRouter. Each user brings their own API key, stored encrypted via Vault KMS.</p>
             </div>
             <div class="feature">
                 <h3>Admin Back-Office</h3>
@@ -385,7 +385,7 @@
             </div>
             <div class="arch-card">
                 <h3>Mercure for Live Updates</h3>
-                <p>Claude sessions are long-lived and interactive. Mercure handles persistent SSE connections with async I/O, so hundreds of sessions don't exhaust PHP workers.</p>
+                <p>AI sessions are long-lived and interactive. Mercure handles persistent SSE connections with async I/O, so hundreds of sessions don't exhaust PHP workers.</p>
             </div>
             <div class="arch-card">
                 <h3>Shared Network Storage</h3>
@@ -397,7 +397,7 @@
             </div>
             <div class="arch-card">
                 <h3>Vault KMS for API Keys</h3>
-                <p>User Anthropic API keys are encrypted at rest via Upsun's managed Vault KMS transit encryption. The encryption key never leaves the vault. Locally, a plaintext encryptor keeps development simple.</p>
+                <p>User API keys are encrypted at rest via Upsun's managed Vault KMS transit encryption. The encryption key never leaves the vault.</p>
             </div>
         </div>
     </section>
@@ -416,6 +416,7 @@
             <span class="tech-badge">Stimulus</span>
             <span class="tech-badge">Turbo</span>
             <span class="tech-badge">xterm.js</span>
+            <span class="tech-badge">pi.dev</span>
             <span class="tech-badge">Vault KMS</span>
             <span class="tech-badge">Upsun</span>
         </div>
@@ -435,7 +436,7 @@
             <div class="setup-step">
                 <h3>Configure</h3>
                 <p>Copy <code>.env</code> to <code>.env.local</code> and set:</p>
-                <div class="code-block"><span class="comment"># Database</span><br>DATABASE_URL="postgresql://user:pass@127.0.0.1:5432/braindump"<br><br><span class="comment"># OpenAI Whisper</span><br>OPENAI_WHISPER_API_KEY=sk-...<br><br><span class="comment"># Mercure (Symfony CLI provides a built-in hub)</span><br>MERCURE_URL=http://localhost:3000/.well-known/mercure</div>
+                <div class="code-block"><span class="comment"># Database</span><br>DATABASE_URL="postgresql://user:pass@127.0.0.1:5432/braindump"<br><br><span class="comment"># OpenAI Whisper</span><br>OPENAI_WHISPER_API_KEY=sk-...<br><br><span class="comment"># Mercure (run the Mercure binary separately)</span><br>MERCURE_URL=http://localhost:3000/.well-known/mercure</div>
             </div>
             <div class="setup-step">
                 <h3>Database &amp; First User</h3>
@@ -443,7 +444,7 @@
             </div>
             <div class="setup-step">
                 <h3>Run</h3>
-                <div class="code-block"><span class="comment"># Web server</span><br><span class="cmd">symfony server:start</span><br><br><span class="comment"># Local Mercure hub</span><br><span class="cmd">./mercure run</span> --config Caddyfile.mercure --adapter caddyfile<br><br><span class="comment"># Transcription worker</span><br><span class="cmd">php bin/console</span> messenger:consume async --sleep=60<br><br><span class="comment"># Claude session worker</span><br><span class="cmd">php bin/console</span> messenger:consume claude --sleep=60</div>
+                <div class="code-block"><span class="comment"># Web server</span><br><span class="cmd">symfony server:start</span><br><br><span class="comment"># Local Mercure hub</span><br><span class="cmd">./mercure run</span> --config Caddyfile.mercure --adapter caddyfile<br><br><span class="comment"># Transcription worker</span><br><span class="cmd">php bin/console</span> messenger:consume async --sleep=60<br><br><span class="comment"># AI session worker</span><br><span class="cmd">php bin/console</span> messenger:consume ai-session --sleep=60</div>
                 <p>Or deploy to Upsun: <code>upsun push</code></p>
             </div>
         </div>

@@ -6,14 +6,27 @@
     <h1 class="mb-2">Settings</h1>
 
     <div class="card">
-        <h2 class="mb-1">Claude API Key</h2>
-        <p class="text-muted mb-1">Enter your Anthropic API key to use Claude Code sessions. Your key is stored encrypted.</p>
+        <h2 class="mb-1">AI Provider</h2>
+        <p class="text-muted mb-1">Configure your AI provider and API key for interactive sessions. Your key is stored encrypted.</p>
 
         <form method="post">
             <div class="form-group">
-                <label for="anthropic_api_key">Anthropic API Key</label>
-                <input type="password" id="anthropic_api_key" name="anthropic_api_key"
-                       placeholder="{% if hasApiKey %}Key is set (enter new value to replace){% else %}sk-ant-...{% endif %}">
+                <label for="ai_provider">Provider</label>
+                <select id="ai_provider" name="ai_provider">
+                    <option value="anthropic" {% if aiProvider == 'anthropic' %}selected{% endif %}>Anthropic (Claude)</option>
+                    <option value="openai" {% if aiProvider == 'openai' %}selected{% endif %}>OpenAI</option>
+                    <option value="google" {% if aiProvider == 'google' %}selected{% endif %}>Google (Gemini)</option>
+                    <option value="groq" {% if aiProvider == 'groq' %}selected{% endif %}>Groq</option>
+                    <option value="mistral" {% if aiProvider == 'mistral' %}selected{% endif %}>Mistral</option>
+                    <option value="deepseek" {% if aiProvider == 'deepseek' %}selected{% endif %}>DeepSeek</option>
+                    <option value="xai" {% if aiProvider == 'xai' %}selected{% endif %}>xAI (Grok)</option>
+                    <option value="openrouter" {% if aiProvider == 'openrouter' %}selected{% endif %}>OpenRouter</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="ai_api_key">API Key</label>
+                <input type="password" id="ai_api_key" name="ai_api_key"
+                       placeholder="{% if hasApiKey %}Key is set (enter new value to replace){% else %}Enter your API key...{% endif %}">
             </div>
             {% if hasApiKey %}
                 <p class="text-success mb-1">An API key is currently configured. Submit an empty value to remove it.</p>

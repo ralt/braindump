@@ -11,8 +11,8 @@ framework:
                 retry_strategy:
                     max_retries: 3
                     multiplier: 2
-            claude:
-                dsn: '%env(MESSENGER_TRANSPORT_DSN)%?queue_name=claude'
+            ai-session:
+                dsn: '%env(MESSENGER_TRANSPORT_DSN)%?queue_name=ai-session'
                 options:
                     use_notify: true
                 retry_strategy:
@@ -30,4 +30,4 @@ framework:
             Symfony\Component\Notifier\Message\ChatMessage: async
             Symfony\Component\Notifier\Message\SmsMessage: async
             App\Message\TranscribeRecordingMessage: async
-            App\Message\StartClaudeSessionMessage: claude
+            App\Message\StartAiSessionMessage: ai-session

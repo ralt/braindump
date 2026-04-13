@@ -20,7 +20,7 @@ applications:
       php:
         composer/composer: '^2'
       nodejs:
-        '@anthropic-ai/claude-code': '*'
+        '@mariozechner/pi-coding-agent': '*'
 
     runtime:
       extensions:
@@ -92,9 +92,9 @@ applications:
             service: audio-storage
             source_path: audio
 
-      claude:
+      ai-session:
         commands:
-          start: php bin/console messenger:consume claude --time-limit=3600 --memory-limit=512M
+          start: php bin/console messenger:consume ai-session --time-limit=3600 --memory-limit=512M
         mounts:
           '/var': { source: storage, source_path: var }
 

@@ -35,7 +35,10 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     private string $displayName;
 
     #[ORM\Column(type: 'text', nullable: true)]
-    private ?string $encryptedAnthropicApiKey = null;
+    private ?string $encryptedAiApiKey = null;
+
+    #[ORM\Column(length: 50, nullable: true)]
+    private ?string $aiProvider = null;
 
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
@@ -114,14 +117,25 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this;
     }
 
-    public function getEncryptedAnthropicApiKey(): ?string
+    public function getEncryptedAiApiKey(): ?string
     {
-        return $this->encryptedAnthropicApiKey;
+        return $this->encryptedAiApiKey;
     }
 
-    public function setEncryptedAnthropicApiKey(?string $encryptedAnthropicApiKey): static
+    public function setEncryptedAiApiKey(?string $encryptedAiApiKey): static
     {
-        $this->encryptedAnthropicApiKey = $encryptedAnthropicApiKey;
+        $this->encryptedAiApiKey = $encryptedAiApiKey;
+        return $this;
+    }
+
+    public function getAiProvider(): ?string
+    {
+        return $this->aiProvider;
+    }
+
+    public function setAiProvider(?string $aiProvider): static
+    {
+        $this->aiProvider = $aiProvider;
         return $this;
     }
 

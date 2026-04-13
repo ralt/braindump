@@ -4,7 +4,7 @@ namespace App\Message;
 
 use Symfony\Component\Uid\Uuid;
 
-final readonly class StartClaudeSessionMessage
+final readonly class StartAiSessionMessage
 {
     public function __construct(
         public Uuid $sessionId,

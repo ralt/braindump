@@ -24,12 +24,17 @@ class UserSettingsController extends AbstractController
         $user = $this->getUser();
 
         if ($request->isMethod('POST')) {
-            $apiKey = $request->request->getString('anthropic_api_key');
+            $apiKey = $request->request->getString('ai_api_key');
+            $provider = $request->request->getString('ai_provider');
 
             if ($apiKey !== '') {
-                $user->setEncryptedAnthropicApiKey($this->encryptor->encrypt($apiKey));
+                $user->setEncryptedAiApiKey($this->encryptor->encrypt($apiKey));
             } else {
-                $user->setEncryptedAnthropicApiKey(null);
+                $user->setEncryptedAiApiKey(null);
+            }
+
+            if ($provider !== '') {
+                $user->setAiProvider($provider);
             }
 
             $this->em->flush();
@@ -39,7 +44,8 @@ class UserSettingsController extends AbstractController
         }
 
         return $this->render('user/settings.html.twig', [
-            'hasApiKey' => $user->getEncryptedAnthropicApiKey() !== null,
+            'hasApiKey' => $user->getEncryptedAiApiKey() !== null,
+            'aiProvider' => $user->getAiProvider() ?? 'anthropic',
         ]);
     }
 }

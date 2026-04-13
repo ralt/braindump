@@ -2,20 +2,20 @@
 
 namespace App\Entity;
 
-use App\Enum\ClaudeSessionStatus;
-use App\Repository\ClaudeSessionRepository;
+use App\Enum\AiSessionStatus;
+use App\Repository\AiSessionRepository;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Bridge\Doctrine\Types\UuidType;
 use Symfony\Component\Uid\Uuid;
 
-#[ORM\Entity(repositoryClass: ClaudeSessionRepository::class)]
-class ClaudeSession
+#[ORM\Entity(repositoryClass: AiSessionRepository::class)]
+class AiSession
 {
     #[ORM\Id]
     #[ORM\Column(type: UuidType::NAME, unique: true)]
     private Uuid $id;
 
-    #[ORM\ManyToOne(targetEntity: Recording::class, inversedBy: 'claudeSessions')]
+    #[ORM\ManyToOne(targetEntity: Recording::class, inversedBy: 'aiSessions')]
     #[ORM\JoinColumn(nullable: false)]
     private Recording $recording;
 
@@ -23,8 +23,8 @@ class ClaudeSession
     #[ORM\JoinColumn(nullable: false)]
     private User $user;
 
-    #[ORM\Column(type: 'string', length: 20, enumType: ClaudeSessionStatus::class)]
-    private ClaudeSessionStatus $status = ClaudeSessionStatus::Starting;
+    #[ORM\Column(type: 'string', length: 20, enumType: AiSessionStatus::class)]
+    private AiSessionStatus $status = AiSessionStatus::Starting;
 
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
@@ -65,12 +65,12 @@ class ClaudeSession
         return $this;
     }
 
-    public function getStatus(): ClaudeSessionStatus
+    public function getStatus(): AiSessionStatus
     {
         return $this->status;
     }
 
-    public function setStatus(ClaudeSessionStatus $status): static
+    public function setStatus(AiSessionStatus $status): static
     {
         $this->status = $status;
         return $this;

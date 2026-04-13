@@ -2,11 +2,11 @@
 
 namespace App\MessageHandler;
 
-use App\Entity\ClaudeSession;
+use App\Entity\AiSession;
 use App\Entity\Recording;
 use App\Entity\User;
-use App\Enum\ClaudeSessionStatus;
-use App\Message\StartClaudeSessionMessage;
+use App\Enum\AiSessionStatus;
+use App\Message\StartAiSessionMessage;
 use App\Service\ApiKeyEncryptorInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerAwareInterface;
@@ -17,9 +17,20 @@ use Symfony\Component\Mercure\Update;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
 #[AsMessageHandler]
-final class ClaudeSessionHandler implements LoggerAwareInterface
+final class AiSessionHandler implements LoggerAwareInterface
 {
     use LoggerAwareTrait;
+
+    private const PROVIDER_ENV_MAP = [
+        'anthropic' => 'ANTHROPIC_API_KEY',
+        'openai' => 'OPENAI_API_KEY',
+        'google' => 'GOOGLE_API_KEY',
+        'groq' => 'GROQ_API_KEY',
+        'mistral' => 'MISTRAL_API_KEY',
+        'deepseek' => 'DEEPSEEK_API_KEY',
+        'xai' => 'XAI_API_KEY',
+        'openrouter' => 'OPENROUTER_API_KEY',
+    ];
 
     public function __construct(
         private EntityManagerInterface $em,
@@ -29,9 +40,9 @@ final class ClaudeSessionHandler implements LoggerAwareInterface
         $this->logger = new NullLogger();
     }
 
-    public function __invoke(StartClaudeSessionMessage $message): void
+    public function __invoke(StartAiSessionMessage $message): void
     {
-        $session = $this->em->find(ClaudeSession::class, $message->sessionId);
+        $session = $this->em->find(AiSession::class, $message->sessionId);
         $recording = $this->em->find(Recording::class, $message->recordingId);
         $user = $this->em->find(User::class, $message->userId);
 
@@ -39,15 +50,15 @@ final class ClaudeSessionHandler implements LoggerAwareInterface
             return;
         }
 
-        $topic = 'claude-session/' . $session->getId();
+        $topic = 'ai-session/' . $session->getId();
 
         // Create temp directory for the session
-        $tmpDir = sys_get_temp_dir() . '/claude-sessions/' . $session->getId();
+        $tmpDir = sys_get_temp_dir() . '/ai-sessions/' . $session->getId();
         if (!is_dir($tmpDir)) {
             mkdir($tmpDir, 0755, true);
         }
 
-        // Write transcription for Claude to read
+        // Write transcription for the AI to read
         $transcriptionPath = $tmpDir . '/transcription.md';
         file_put_contents($transcriptionPath, $recording->getTranscription() ?? '');
 
@@ -57,25 +68,28 @@ final class ClaudeSessionHandler implements LoggerAwareInterface
             posix_mkfifo($fifoPath, 0600);
         }
 
-        // Decrypt API key
+        // Decrypt API key and determine provider env var
+        $provider = $user->getAiProvider() ?? 'anthropic';
+        $envVar = self::PROVIDER_ENV_MAP[$provider] ?? 'ANTHROPIC_API_KEY';
         $apiKey = '';
-        if ($user->getEncryptedAnthropicApiKey()) {
+
+        if ($user->getEncryptedAiApiKey()) {
             try {
-                $apiKey = $this->encryptor->decrypt($user->getEncryptedAnthropicApiKey());
+                $apiKey = $this->encryptor->decrypt($user->getEncryptedAiApiKey());
             } catch (\Throwable) {
                 $this->publishOutput($topic, "\r\nError: Could not decrypt API key\r\n");
-                $session->setStatus(ClaudeSessionStatus::Closed);
+                $session->setStatus(AiSessionStatus::Closed);
                 $session->setClosedAt(new \DateTimeImmutable());
                 $this->em->flush();
                 return;
             }
         }
 
-        // Start Claude process
-        $claudeBin = trim(shell_exec('which claude') ?? '');
-        if ($claudeBin === '') {
-            $this->publishOutput($topic, "\r\nError: claude binary not found in PATH\r\n");
-            $session->setStatus(ClaudeSessionStatus::Closed);
+        // Start pi process
+        $piBin = trim(shell_exec('which pi') ?? '');
+        if ($piBin === '') {
+            $this->publishOutput($topic, "\r\nError: pi binary not found in PATH\r\n");
+            $session->setStatus(AiSessionStatus::Closed);
             $session->setClosedAt(new \DateTimeImmutable());
             $this->em->flush();
             return;
@@ -84,7 +98,7 @@ final class ClaudeSessionHandler implements LoggerAwareInterface
         // Set env vars for the child process, then pass null to proc_open
         // to inherit the full parent environment (passing an array replaces it entirely,
         // and $_SERVER/$_ENV in Symfony contain non-string values that break proc_open).
-        putenv('ANTHROPIC_API_KEY=' . $apiKey);
+        putenv($envVar . '=' . $apiKey);
         putenv('TMPDIR=' . $tmpDir);
 
         $descriptors = [
@@ -100,27 +114,28 @@ final class ClaudeSessionHandler implements LoggerAwareInterface
 
         $cmd = sprintf(
             '%s --verbose %s',
-            escapeshellarg($claudeBin),
+            escapeshellarg($piBin),
             escapeshellarg($initialPrompt)
         );
 
-        $this->log('Starting Claude process', [
+        $this->log('Starting pi process', [
             'session' => (string) $session->getId(),
             'recording' => (string) $recording->getId(),
             'user' => $user->getEmail(),
-            'claudeBin' => $claudeBin,
+            'provider' => $provider,
+            'piBin' => $piBin,
             'cmd' => $cmd,
             'tmpDir' => $tmpDir,
         ]);
 
-        $this->publishOutput($topic, "Launching claude...\r\n");
+        $this->publishOutput($topic, "Launching pi.dev session...\r\n");
 
         $process = proc_open($cmd, $descriptors, $pipes, $tmpDir);
 
         if (!is_resource($process)) {
-            $this->log('Failed to start Claude process');
-            $this->publishOutput($topic, "\r\nError: Could not start Claude process\r\n");
-            $session->setStatus(ClaudeSessionStatus::Closed);
+            $this->log('Failed to start pi process');
+            $this->publishOutput($topic, "\r\nError: Could not start pi process\r\n");
+            $session->setStatus(AiSessionStatus::Closed);
             $session->setClosedAt(new \DateTimeImmutable());
             $this->em->flush();
             return;
@@ -130,10 +145,10 @@ final class ClaudeSessionHandler implements LoggerAwareInterface
         stream_set_blocking($pipes[1], false);
         stream_set_blocking($pipes[2], false);
 
-        $session->setStatus(ClaudeSessionStatus::Running);
+        $session->setStatus(AiSessionStatus::Running);
         $this->em->flush();
 
-        $this->publishOutput($topic, "Claude session started. Reading transcription...\r\n");
+        $this->publishOutput($topic, "AI session started. Reading transcription...\r\n");
 
         // Main loop: read stdout/stderr and forward to Mercure, read FIFO for input
         $fifo = null;
@@ -164,7 +179,7 @@ final class ClaudeSessionHandler implements LoggerAwareInterface
                 if ($remaining) {
                     $this->publishOutput($topic, $remaining);
                 }
-                $this->log('Claude process exited', [
+                $this->log('pi process exited', [
                     'exitcode' => $status['exitcode'],
                     'signaled' => $status['signaled'],
                     'termsig' => $status['termsig'],
@@ -209,7 +224,7 @@ final class ClaudeSessionHandler implements LoggerAwareInterface
         }
 
         // Cleanup
-        putenv('ANTHROPIC_API_KEY');
+        putenv($envVar);
         putenv('TMPDIR');
         fclose($pipes[0]);
         fclose($pipes[1]);
@@ -223,7 +238,7 @@ final class ClaudeSessionHandler implements LoggerAwareInterface
         // Clean up temp directory
         $this->cleanupDir($tmpDir);
 
-        $session->setStatus(ClaudeSessionStatus::Closed);
+        $session->setStatus(AiSessionStatus::Closed);
         $session->setClosedAt(new \DateTimeImmutable());
         $this->em->flush();
 
@@ -247,7 +262,7 @@ final class ClaudeSessionHandler implements LoggerAwareInterface
         $this->logger->info($message, $context);
         // Also write to stderr so it always appears in Upsun logs
         // (prod monolog uses fingers_crossed which may swallow INFO)
-        error_log('[ClaudeSession] ' . $message . ' ' . json_encode($context));
+        error_log('[AiSession] ' . $message . ' ' . json_encode($context));
     }
 
     private function cleanupDir(string $dir): void

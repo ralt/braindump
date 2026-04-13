@@ -10,6 +10,7 @@ use Doctrine\ORM\Mapping as ORM;
 use Symfony\Bridge\Doctrine\Types\UuidType;
 use Symfony\Component\Uid\Uuid;
 
+
 #[ORM\Entity(repositoryClass: RecordingRepository::class)]
 class Recording
 {
@@ -52,9 +53,9 @@ class Recording
     #[ORM\OneToMany(targetEntity: RecordingShare::class, mappedBy: 'recording', cascade: ['remove'])]
     private Collection $shares;
 
-    /** @var Collection<int, ClaudeSession> */
-    #[ORM\OneToMany(targetEntity: ClaudeSession::class, mappedBy: 'recording', cascade: ['remove'])]
-    private Collection $claudeSessions;
+    /** @var Collection<int, AiSession> */
+    #[ORM\OneToMany(targetEntity: AiSession::class, mappedBy: 'recording', cascade: ['remove'])]
+    private Collection $aiSessions;
 
     public function __construct()
     {
@@ -62,7 +63,7 @@ class Recording
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = new \DateTimeImmutable();
         $this->shares = new ArrayCollection();
-        $this->claudeSessions = new ArrayCollection();
+        $this->aiSessions = new ArrayCollection();
     }
 
     public function getId(): Uuid
@@ -176,10 +177,10 @@ class Recording
         return $this->shares;
     }
 
-    /** @return Collection<int, ClaudeSession> */
-    public function getClaudeSessions(): Collection
+    /** @return Collection<int, AiSession> */
+    public function getAiSessions(): Collection
     {
-        return $this->claudeSessions;
+        return $this->aiSessions;
     }
 
     public function __toString(): string

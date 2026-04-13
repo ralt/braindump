@@ -2,11 +2,11 @@
 
 namespace App\Controller;
 
-use App\Entity\ClaudeSession;
+use App\Entity\AiSession;
 use App\Entity\Recording;
 use App\Entity\User;
-use App\Enum\ClaudeSessionStatus;
-use App\Message\StartClaudeSessionMessage;
+use App\Enum\AiSessionStatus;
+use App\Message\StartAiSessionMessage;
 use App\Service\ApiKeyEncryptorInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -16,7 +16,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Attribute\Route;
 
-class ClaudeSessionController extends AbstractController
+class AiSessionController extends AbstractController
 {
     public function __construct(
         private EntityManagerInterface $em,
@@ -24,34 +24,34 @@ class ClaudeSessionController extends AbstractController
         private ApiKeyEncryptorInterface $encryptor,
     ) {}
 
-    #[Route('/recordings/{id}/claude', name: 'app_claude_session')]
+    #[Route('/recordings/{id}/ai-session', name: 'app_ai_session')]
     public function show(Recording $recording): Response
     {
-        $this->denyAccessUnlessGranted('RECORDING_CLAUDE', $recording);
+        $this->denyAccessUnlessGranted('RECORDING_AI_SESSION', $recording);
 
         /** @var User $user */
         $user = $this->getUser();
 
-        if ($user->getEncryptedAnthropicApiKey() === null) {
-            $this->addFlash('error', 'Please configure your Anthropic API key in Settings before starting a Claude session.');
+        if ($user->getEncryptedAiApiKey() === null) {
+            $this->addFlash('error', 'Please configure your AI provider API key in Settings before starting a session.');
             return $this->redirectToRoute('app_user_settings');
         }
 
-        return $this->render('recording/claude.html.twig', [
+        return $this->render('recording/ai_session.html.twig', [
             'recording' => $recording,
         ]);
     }
 
-    #[Route('/api/recordings/{id}/claude', name: 'api_claude_session_start', methods: ['POST'])]
+    #[Route('/api/recordings/{id}/ai-session', name: 'api_ai_session_start', methods: ['POST'])]
     public function start(Recording $recording): JsonResponse
     {
-        $this->denyAccessUnlessGranted('RECORDING_CLAUDE', $recording);
+        $this->denyAccessUnlessGranted('RECORDING_AI_SESSION', $recording);
 
         /** @var User $user */
         $user = $this->getUser();
 
-        if ($user->getEncryptedAnthropicApiKey() === null) {
-            return $this->json(['error' => 'Anthropic API key not configured'], Response::HTTP_BAD_REQUEST);
+        if ($user->getEncryptedAiApiKey() === null) {
+            return $this->json(['error' => 'AI provider API key not configured'], Response::HTTP_BAD_REQUEST);
         }
 
         // Prevent duplicate sessions — only consider sessions created in the last 5 minutes
@@ -59,14 +59,14 @@ class ClaudeSessionController extends AbstractController
         $cutoff = new \DateTimeImmutable('-5 minutes');
         $existing = $this->em->createQueryBuilder()
             ->select('s')
-            ->from(ClaudeSession::class, 's')
+            ->from(AiSession::class, 's')
             ->where('s.recording = :recording')
             ->andWhere('s.user = :user')
             ->andWhere('s.status IN (:statuses)')
             ->andWhere('s.createdAt > :cutoff')
             ->setParameter('recording', $recording)
             ->setParameter('user', $user)
-            ->setParameter('statuses', [ClaudeSessionStatus::Starting, ClaudeSessionStatus::Running])
+            ->setParameter('statuses', [AiSessionStatus::Starting, AiSessionStatus::Running])
             ->setParameter('cutoff', $cutoff)
             ->setMaxResults(1)
             ->getQuery()
@@ -75,35 +75,35 @@ class ClaudeSessionController extends AbstractController
         if ($existing) {
             return $this->json([
                 'sessionId' => $existing->getId(),
-                'mercureTopic' => 'claude-session/' . $existing->getId(),
+                'mercureTopic' => 'ai-session/' . $existing->getId(),
             ]);
         }
 
         // Close any stale starting/running sessions
         $this->em->createQueryBuilder()
-            ->update(ClaudeSession::class, 's')
+            ->update(AiSession::class, 's')
             ->set('s.status', ':closed')
             ->set('s.closedAt', ':now')
             ->where('s.recording = :recording')
             ->andWhere('s.user = :user')
             ->andWhere('s.status IN (:statuses)')
-            ->setParameter('closed', ClaudeSessionStatus::Closed)
+            ->setParameter('closed', AiSessionStatus::Closed)
             ->setParameter('now', new \DateTimeImmutable())
             ->setParameter('recording', $recording)
             ->setParameter('user', $user)
-            ->setParameter('statuses', [ClaudeSessionStatus::Starting, ClaudeSessionStatus::Running])
+            ->setParameter('statuses', [AiSessionStatus::Starting, AiSessionStatus::Running])
             ->getQuery()
             ->execute();
 
-        $session = new ClaudeSession();
+        $session = new AiSession();
         $session->setRecording($recording);
         $session->setUser($user);
-        $session->setStatus(ClaudeSessionStatus::Starting);
+        $session->setStatus(AiSessionStatus::Starting);
 
         $this->em->persist($session);
         $this->em->flush();
 
-        $this->bus->dispatch(new StartClaudeSessionMessage(
+        $this->bus->dispatch(new StartAiSessionMessage(
             $session->getId(),
             $recording->getId(),
             $user->getId(),
@@ -111,20 +111,20 @@ class ClaudeSessionController extends AbstractController
 
         return $this->json([
             'sessionId' => $session->getId(),
-            'mercureTopic' => 'claude-session/' . $session->getId(),
+            'mercureTopic' => 'ai-session/' . $session->getId(),
         ], Response::HTTP_CREATED);
     }
 
-    #[Route('/api/claude-sessions/{id}/status', name: 'api_claude_session_status', methods: ['GET'])]
-    public function status(ClaudeSession $session): JsonResponse
+    #[Route('/api/ai-sessions/{id}/status', name: 'api_ai_session_status', methods: ['GET'])]
+    public function status(AiSession $session): JsonResponse
     {
         return $this->json([
             'status' => $session->getStatus()->value,
         ]);
     }
 
-    #[Route('/api/claude-sessions/{id}/input', name: 'api_claude_session_input', methods: ['POST'])]
-    public function input(ClaudeSession $session, Request $request): JsonResponse
+    #[Route('/api/ai-sessions/{id}/input', name: 'api_ai_session_input', methods: ['POST'])]
+    public function input(AiSession $session, Request $request): JsonResponse
     {
         /** @var User $user */
         $user = $this->getUser();
@@ -141,7 +141,7 @@ class ClaudeSessionController extends AbstractController
         }
 
         // Write to the session's FIFO
-        $fifoPath = sys_get_temp_dir() . '/claude-sessions/' . $session->getId() . '/input.fifo';
+        $fifoPath = sys_get_temp_dir() . '/ai-sessions/' . $session->getId() . '/input.fifo';
 
         if (!file_exists($fifoPath)) {
             return $this->json(['error' => 'Session not ready'], Response::HTTP_SERVICE_UNAVAILABLE);
@@ -158,8 +158,8 @@ class ClaudeSessionController extends AbstractController
         return $this->json(['ok' => true]);
     }
 
-    #[Route('/api/claude-sessions/{id}', name: 'api_claude_session_close', methods: ['DELETE'])]
-    public function close(ClaudeSession $session): JsonResponse
+    #[Route('/api/ai-sessions/{id}', name: 'api_ai_session_close', methods: ['DELETE'])]
+    public function close(AiSession $session): JsonResponse
     {
         /** @var User $user */
         $user = $this->getUser();
@@ -169,7 +169,7 @@ class ClaudeSessionController extends AbstractController
         }
 
         // Signal the worker to stop by writing a sentinel value
-        $fifoPath = sys_get_temp_dir() . '/claude-sessions/' . $session->getId() . '/input.fifo';
+        $fifoPath = sys_get_temp_dir() . '/ai-sessions/' . $session->getId() . '/input.fifo';
         if (file_exists($fifoPath)) {
             $fifo = fopen($fifoPath, 'w');
             if ($fifo) {
@@ -178,7 +178,7 @@ class ClaudeSessionController extends AbstractController
             }
         }
 
-        $session->setStatus(ClaudeSessionStatus::Closed);
+        $session->setStatus(AiSessionStatus::Closed);
         $session->setClosedAt(new \DateTimeImmutable());
         $this->em->flush();
 

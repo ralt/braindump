@@ -1,6 +1,6 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}Claude Session - {{ recording.title }}{% endblock %}
+{% block title %}AI Session - {{ recording.title }}{% endblock %}
 
 {% block stylesheets %}
     {{ parent() }}
@@ -29,21 +29,21 @@
 {% endblock %}
 
 {% block body %}
-    <div {{ stimulus_controller('claude-terminal', {
+    <div {{ stimulus_controller('ai-terminal', {
         recordingId: recording.id.toRfc4122,
-        startUrl: path('api_claude_session_start', {id: recording.id}),
+        startUrl: path('api_ai_session_start', {id: recording.id}),
         mercureUrl: mercurePublicUrl ~ '?topic=',
     }) }}>
         <div class="terminal-container">
             <div class="terminal-header">
-                <span class="title">Claude - {{ recording.title }}</span>
+                <span class="title">pi.dev - {{ recording.title }}</span>
                 <div class="flex gap-1 flex-center">
-                    <span class="badge badge-transcribing" {{ stimulus_target('claude-terminal', 'status') }}>Connecting...</span>
-                    <button class="btn btn-danger btn-sm" {{ stimulus_action('claude-terminal', 'close') }}>Close</button>
+                    <span class="badge badge-transcribing" {{ stimulus_target('ai-terminal', 'status') }}>Connecting...</span>
+                    <button class="btn btn-danger btn-sm" {{ stimulus_action('ai-terminal', 'close') }}>Close</button>
                     <a href="{{ path('app_recording_show', {id: recording.id}) }}" class="btn btn-secondary btn-sm">Back</a>
                 </div>
             </div>
-            <div id="terminal" {{ stimulus_target('claude-terminal', 'terminal') }}></div>
+            <div id="terminal" {{ stimulus_target('ai-terminal', 'terminal') }}></div>
         </div>
     </div>
 {% endblock %}

@@ -15,7 +15,7 @@ abstract class DatabaseTestCase extends WebTestCase
         $em = static::getContainer()->get(EntityManagerInterface::class);
         $connection = $em->getConnection();
 
-        $connection->executeStatement('DELETE FROM claude_session');
+        $connection->executeStatement('DELETE FROM ai_session');
         $connection->executeStatement('DELETE FROM recording_share');
         $connection->executeStatement('DELETE FROM recording');
         $connection->executeStatement('DELETE FROM "user"');

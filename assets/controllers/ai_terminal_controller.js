@@ -37,7 +37,7 @@ export default class extends Controller {
 
         window.addEventListener('resize', () => this.fitAddon.fit())
 
-        this.terminal.writeln('Starting Claude session...')
+        this.terminal.writeln('Starting AI session...')
 
         // Handle user input
         this.terminal.onData((data) => {
@@ -103,7 +103,7 @@ export default class extends Controller {
             const input = this.inputBuffer
             this.inputBuffer = ''
 
-            fetch(`/api/claude-sessions/${this.sessionId}/input`, {
+            fetch(`/api/ai-sessions/${this.sessionId}/input`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ input }),
@@ -114,7 +114,7 @@ export default class extends Controller {
     async checkSessionStatus() {
         if (!this.sessionId) return
         try {
-            const response = await fetch(`/api/claude-sessions/${this.sessionId}/status`)
+            const response = await fetch(`/api/ai-sessions/${this.sessionId}/status`)
             if (!response.ok) return
             const data = await response.json()
             if (data.status === 'closed') {
@@ -141,7 +141,7 @@ export default class extends Controller {
     async close() {
         if (this.sessionId) {
             try {
-                await fetch(`/api/claude-sessions/${this.sessionId}`, {
+                await fetch(`/api/ai-sessions/${this.sessionId}`, {
                     method: 'DELETE',
                 })
             } catch {

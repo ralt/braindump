@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Symfony 7.4 / PHP 8.4 speech-to-text web app. Browser audio recording, OpenAI Whisper transcription via Symfony AI, PostgreSQL FTS, recording sharing, interactive Claude Code terminal sessions. Deployed on Upsun.
+Symfony 7.4 / PHP 8.4 speech-to-text web app. Browser audio recording, OpenAI Whisper transcription via Symfony AI, PostgreSQL FTS, recording sharing, interactive AI terminal sessions (via pi.dev). Deployed on Upsun.
 
 ## Subagent Workflow (REQUIRED)
 
@@ -27,9 +27,9 @@ Never have subagents modify the main working directory directly.
 
 ## Key Architecture
 
-- **Messenger transports:** `async` (transcription), `claude` (sessions), both via Doctrine/PostgreSQL LISTEN/NOTIFY
-- **Mercure SSE** for real-time updates (transcription status, Claude session output)
-- **Per-user Anthropic API key** stored encrypted via Vault KMS (prod) or plaintext (dev)
+- **Messenger transports:** `async` (transcription), `ai-session` (sessions), both via Doctrine/PostgreSQL LISTEN/NOTIFY
+- **Mercure SSE** for real-time updates (transcription status, AI session output)
+- **Per-user AI provider API key** stored encrypted via Vault KMS (prod) or plaintext (dev)
 - **Audio files** on Upsun network-storage (shared between web + worker containers)
 
 ## Commands
@@ -43,7 +43,7 @@ symfony server:start
 
 # Workers (--sleep=60 avoids poll spam on SQLite; not needed on Upsun where LISTEN/NOTIFY is used)
 php bin/console messenger:consume async --time-limit=3600 --sleep=60
-php bin/console messenger:consume claude --time-limit=3600 --sleep=60
+php bin/console messenger:consume ai-session --time-limit=3600 --sleep=60
 
 # Create user
 php bin/console app:create-user <email> <password> <display-name> [--admin]
