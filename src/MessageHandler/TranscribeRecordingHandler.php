@@ -11,7 +11,6 @@ use Symfony\AI\Platform\Message\Content\Audio;
 use Symfony\AI\Platform\PlatformInterface;
 use Symfony\Component\Mercure\HubInterface;
 use Symfony\Component\Mercure\Update;
-use Psr\Log\LoggerInterface;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
 #[AsMessageHandler]
@@ -23,7 +22,6 @@ final class TranscribeRecordingHandler
         private HubInterface $hub,
         private SearchProviderInterface $searchProvider,
         private string $audioStoragePath,
-        private LoggerInterface $logger,
     ) {}
 
     public function __invoke(TranscribeRecordingMessage $message): void
@@ -39,16 +37,6 @@ final class TranscribeRecordingHandler
 
         try {
             $audioPath = $this->audioStoragePath . '/' . $recording->getAudioFilePath();
-
-            $this->logger->error('[DIAG] Transcription worker reading audio file', [
-                'path' => $audioPath,
-                'exists' => file_exists($audioPath),
-                'readable' => is_readable($audioPath),
-                'dir_exists' => is_dir($this->audioStoragePath),
-                'dir_contents' => is_dir($this->audioStoragePath) ? scandir($this->audioStoragePath) : 'DIR_NOT_FOUND',
-                'audioStoragePath' => $this->audioStoragePath,
-            ]);
-
             $audio = Audio::fromFile($audioPath);
 
             $result = $this->platform->invoke('whisper-1', $audio);
