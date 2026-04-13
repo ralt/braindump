@@ -14,6 +14,7 @@ use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\Mercure\Authorization;
 use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Uid\Uuid;
@@ -25,6 +26,7 @@ class RecordingController extends AbstractController
         private EntityManagerInterface $em,
         private MessageBusInterface $bus,
         private SearchProviderInterface $searchProvider,
+        private Authorization $mercureAuthorization,
         private string $audioStoragePath,
     ) {}
 
@@ -54,9 +56,12 @@ class RecordingController extends AbstractController
     }
 
     #[Route('/recordings/{id}', name: 'app_recording_show')]
-    public function show(Recording $recording): Response
+    public function show(Recording $recording, Request $request): Response
     {
         $this->denyAccessUnlessGranted('RECORDING_VIEW', $recording);
+
+        // Set Mercure authorization cookie for real-time transcription updates
+        $this->mercureAuthorization->setCookie($request, ['*']);
 
         return $this->render('recording/show.html.twig', [
             'recording' => $recording,

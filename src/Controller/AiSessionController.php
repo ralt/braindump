@@ -13,6 +13,7 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\Mercure\Authorization;
 use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Attribute\Route;
 
@@ -22,10 +23,11 @@ class AiSessionController extends AbstractController
         private EntityManagerInterface $em,
         private MessageBusInterface $bus,
         private ApiKeyEncryptorInterface $encryptor,
+        private Authorization $mercureAuthorization,
     ) {}
 
     #[Route('/recordings/{id}/ai-session', name: 'app_ai_session')]
-    public function show(Recording $recording): Response
+    public function show(Recording $recording, Request $request): Response
     {
         $this->denyAccessUnlessGranted('RECORDING_AI_SESSION', $recording);
 
@@ -36,6 +38,9 @@ class AiSessionController extends AbstractController
             $this->addFlash('error', 'Please configure your AI provider API key in Settings before starting a session.');
             return $this->redirectToRoute('app_user_settings');
         }
+
+        // Set Mercure authorization cookie so the browser can subscribe
+        $this->mercureAuthorization->setCookie($request, ['*']);
 
         return $this->render('recording/ai_session.html.twig', [
             'recording' => $recording,
