@@ -11,6 +11,7 @@ Record audio in your browser, get it transcribed via OpenAI Whisper, search acro
 - **Full-Text Search** — PostgreSQL full-text search across titles and transcriptions, with configurable OpenSearch backend.
 - **Sharing** — Share recordings with other users by email, with view or edit permissions (Google Docs-style).
 - **AI Sessions** — Start an interactive AI terminal session (via pi.dev) from your browser that reads your transcription. Supports multiple providers (Anthropic, OpenAI, Google, Groq, Mistral, DeepSeek, xAI, OpenRouter). Each user provides their own API key, stored encrypted via Upsun Vault KMS.
+- **Enterprise-Ready Auth** — Form login for simple setups, OIDC for enterprise SSO. Connect to your existing identity provider.
 - **Admin Back-Office** — EasyAdmin dashboard for user management.
 
 ## Infrastructure Architecture
