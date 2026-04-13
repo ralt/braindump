@@ -19,6 +19,8 @@ applications:
     dependencies:
       php:
         composer/composer: '^2'
+      nodejs:
+        '@anthropic-ai/claude-code': '*'
 
     runtime:
       extensions:
