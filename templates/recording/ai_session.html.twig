@@ -39,7 +39,7 @@
                 <span class="title">pi.dev - {{ recording.title }}</span>
                 <div class="flex gap-1 flex-center">
                     <span class="badge badge-transcribing" {{ stimulus_target('ai-terminal', 'status') }}>Connecting...</span>
-                    <button class="btn btn-danger btn-sm" {{ stimulus_action('ai-terminal', 'close') }}>Close</button>
+                    <button class="btn btn-danger btn-sm" {{ stimulus_target('ai-terminal', 'closeBtn') }} {{ stimulus_action('ai-terminal', 'close') }}>Close</button>
                     <a href="{{ path('app_recording_show', {id: recording.id}) }}" class="btn btn-secondary btn-sm">Back</a>
                 </div>
             </div>

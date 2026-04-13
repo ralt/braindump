@@ -3,7 +3,7 @@ import { Terminal } from 'xterm'
 import { FitAddon } from '@xterm/addon-fit'
 
 export default class extends Controller {
-    static targets = ['terminal', 'status']
+    static targets = ['terminal', 'status', 'closeBtn']
     static values = {
         recordingId: String,
         startUrl: String,
@@ -119,7 +119,7 @@ export default class extends Controller {
             const data = await response.json()
             if (data.status === 'closed') {
                 this.terminal.writeln('\r\nSession closed (worker stopped).')
-                this.statusTarget.textContent = 'Closed'
+                this.markClosed()
                 this.stopPolling()
                 if (this.eventSource) {
                     this.eventSource.close()
@@ -154,7 +154,12 @@ export default class extends Controller {
         }
 
         this.terminal.writeln('\r\nSession closed.')
+        this.markClosed()
+    }
+
+    markClosed() {
         this.statusTarget.textContent = 'Closed'
+        this.closeBtnTarget.disabled = true
     }
 
     disconnect() {
