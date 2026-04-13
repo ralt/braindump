@@ -22,6 +22,7 @@ class ClaudeSessionController extends AbstractController
         private EntityManagerInterface $em,
         private MessageBusInterface $bus,
         private ApiKeyEncryptorInterface $encryptor,
+        private string $mercurePublicUrl,
     ) {}
 
     #[Route('/recordings/{id}/claude', name: 'app_claude_session')]
@@ -39,6 +40,7 @@ class ClaudeSessionController extends AbstractController
 
         return $this->render('recording/claude.html.twig', [
             'recording' => $recording,
+            'mercurePublicUrl' => $this->mercurePublicUrl,
         ]);
     }
 
