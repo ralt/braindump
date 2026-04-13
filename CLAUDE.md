@@ -27,10 +27,13 @@ Never have subagents modify the main working directory directly.
 
 ## Key Architecture
 
+- **FrankenPHP** as the web runtime on Upsun (via `runtime/frankenphp-symfony`)
 - **Messenger transports:** `async` (transcription), `ai-session` (sessions), both via Doctrine/PostgreSQL LISTEN/NOTIFY
-- **Mercure SSE** for real-time updates (transcription status, AI session output)
+- **Revolt event loop + fibers** in the AI session handler for concurrent PTY I/O
+- **Mercure SSE** for real-time updates (transcription status, AI session output); same-origin path routing (`/.well-known/mercure`)
 - **Per-user AI provider API key** stored encrypted via Vault KMS (prod) or plaintext (dev)
 - **Audio files** on Upsun network-storage (shared between web + worker containers)
+- **Upsun deploy:** `symfony-build` / `symfony-deploy` (installed via Symfony Cloud configurator)
 
 ## Commands
 

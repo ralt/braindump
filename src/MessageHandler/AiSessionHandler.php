@@ -12,6 +12,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
 use Psr\Log\NullLogger;
+use Revolt\EventLoop;
 use Symfony\Component\Mercure\HubInterface;
 use Symfony\Component\Mercure\Update;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
@@ -96,15 +97,15 @@ final class AiSessionHandler implements LoggerAwareInterface
         }
 
         // Set env vars for the child process, then pass null to proc_open
-        // to inherit the full parent environment (passing an array replaces it entirely,
-        // and $_SERVER/$_ENV in Symfony contain non-string values that break proc_open).
+        // to inherit the full parent environment.
         putenv($envVar . '=' . $apiKey);
         putenv('TMPDIR=' . $tmpDir);
 
+        // Use PTY so pi.dev sees a real terminal (enables colors, cursor, ANSI)
         $descriptors = [
-            0 => ['pipe', 'r'], // stdin
-            1 => ['pipe', 'w'], // stdout
-            2 => ['pipe', 'w'], // stderr
+            0 => ['pty'],     // stdin  — pi.dev sees a TTY
+            1 => ['pty'],     // stdout — merged with stdin on the master side
+            2 => ['pipe', 'w'], // stderr — kept separate for error visibility
         ];
 
         $initialPrompt = sprintf(
@@ -141,54 +142,44 @@ final class AiSessionHandler implements LoggerAwareInterface
             return;
         }
 
-        // Set stdout and stderr to non-blocking
-        stream_set_blocking($pipes[1], false);
-        stream_set_blocking($pipes[2], false);
+        // PTY: pipes[0] is the master end (read/write), pipes[2] is stderr
+        $ptyMaster = $pipes[0];
+        $stderr = $pipes[2];
+        stream_set_blocking($ptyMaster, false);
+        stream_set_blocking($stderr, false);
 
         $session->setStatus(AiSessionStatus::Running);
         $this->em->flush();
 
         $this->publishOutput($topic, "AI session started. Reading transcription...\r\n");
 
-        // Main loop: read stdout/stderr and forward to Mercure, read FIFO for input
+        // Use Revolt event loop with fibers for concurrent I/O
+        $callbackIds = [];
+
+        // Green thread 1: read PTY output → publish to Mercure
+        $callbackIds[] = EventLoop::onReadable($ptyMaster, function (string $id, $stream) use ($topic, $process, &$callbackIds) {
+            $data = @fread($stream, 4096);
+            if ($data !== false && $data !== '') {
+                $this->publishOutput($topic, $data);
+            }
+            if ($data === false || feof($stream)) {
+                $this->cancelAll($callbackIds);
+            }
+        });
+
+        // Green thread 2: read stderr → publish to Mercure
+        $callbackIds[] = EventLoop::onReadable($stderr, function (string $id, $stream) use ($topic) {
+            $data = @fread($stream, 4096);
+            if ($data !== false && $data !== '') {
+                $this->publishOutput($topic, $data);
+            }
+        });
+
+        // Green thread 3: poll FIFO for user input → write to PTY stdin
+        // FIFO needs periodic re-opening (writer closes after each message),
+        // so we use a repeating timer instead of onReadable.
         $fifo = null;
-        $running = true;
-
-        while ($running) {
-            // Read stdout
-            $output = fread($pipes[1], 4096);
-            if ($output !== false && $output !== '') {
-                $this->publishOutput($topic, $output);
-            }
-
-            // Read stderr
-            $stderr = fread($pipes[2], 4096);
-            if ($stderr !== false && $stderr !== '') {
-                $this->publishOutput($topic, $stderr);
-            }
-
-            // Check if process is still running
-            $status = proc_get_status($process);
-            if (!$status['running']) {
-                // Read any remaining output
-                $remaining = stream_get_contents($pipes[1]);
-                if ($remaining) {
-                    $this->publishOutput($topic, $remaining);
-                }
-                $remaining = stream_get_contents($pipes[2]);
-                if ($remaining) {
-                    $this->publishOutput($topic, $remaining);
-                }
-                $this->log('pi process exited', [
-                    'exitcode' => $status['exitcode'],
-                    'signaled' => $status['signaled'],
-                    'termsig' => $status['termsig'],
-                ]);
-                $running = false;
-                break;
-            }
-
-            // Try to read from FIFO (non-blocking)
+        $callbackIds[] = EventLoop::repeat(0.05, function (string $id) use (&$fifo, $fifoPath, $ptyMaster, $process, &$callbackIds) {
             if ($fifo === null && file_exists($fifoPath)) {
                 $fifo = @fopen($fifoPath, 'r');
                 if ($fifo) {
@@ -196,46 +187,70 @@ final class AiSessionHandler implements LoggerAwareInterface
                 }
             }
 
-            if ($fifo) {
-                $input = fread($fifo, 4096);
-                if ($input !== false && $input !== '') {
-                    if ($input === "\x04") {
-                        // EOT - close signal
-                        proc_terminate($process);
-                        $running = false;
-                        break;
-                    }
-                    fwrite($pipes[0], $input);
-                    fflush($pipes[0]);
-                }
-
-                if (feof($fifo)) {
-                    fclose($fifo);
-                    $fifo = null;
-                    // Re-create FIFO for next write
-                    if (file_exists($fifoPath)) {
-                        unlink($fifoPath);
-                    }
-                    posix_mkfifo($fifoPath, 0600);
-                }
+            if ($fifo === null) {
+                return;
             }
 
-            usleep(50000); // 50ms
-        }
+            $input = @fread($fifo, 4096);
+            if ($input !== false && $input !== '') {
+                if ($input === "\x04") {
+                    proc_terminate($process);
+                    $this->cancelAll($callbackIds);
+                    return;
+                }
+                @fwrite($ptyMaster, $input);
+            }
+
+            if (feof($fifo)) {
+                fclose($fifo);
+                $fifo = null;
+                if (file_exists($fifoPath)) {
+                    unlink($fifoPath);
+                }
+                posix_mkfifo($fifoPath, 0600);
+            }
+        });
+
+        // Green thread 4: check if process is still alive
+        $callbackIds[] = EventLoop::repeat(0.2, function (string $id) use ($process, $ptyMaster, $stderr, $topic, &$callbackIds) {
+            $status = proc_get_status($process);
+            if ($status['running']) {
+                return;
+            }
+
+            // Drain remaining output
+            $remaining = @stream_get_contents($ptyMaster);
+            if ($remaining) {
+                $this->publishOutput($topic, $remaining);
+            }
+            $remaining = @stream_get_contents($stderr);
+            if ($remaining) {
+                $this->publishOutput($topic, $remaining);
+            }
+
+            $this->log('pi process exited', [
+                'exitcode' => $status['exitcode'],
+                'signaled' => $status['signaled'],
+                'termsig' => $status['termsig'],
+            ]);
+
+            $this->cancelAll($callbackIds);
+        });
+
+        // Run the event loop — blocks until all callbacks are cancelled
+        EventLoop::run();
 
         // Cleanup
         putenv($envVar);
         putenv('TMPDIR');
-        fclose($pipes[0]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
+        @fclose($ptyMaster);
+        @fclose($stderr);
         proc_close($process);
 
         if ($fifo) {
-            fclose($fifo);
+            @fclose($fifo);
         }
 
-        // Clean up temp directory
         $this->cleanupDir($tmpDir);
 
         $session->setStatus(AiSessionStatus::Closed);
@@ -243,6 +258,17 @@ final class AiSessionHandler implements LoggerAwareInterface
         $this->em->flush();
 
         $this->publishOutput($topic, "\r\nSession ended.\r\n");
+    }
+
+    /**
+     * @param list<string> $ids
+     */
+    private function cancelAll(array &$ids): void
+    {
+        foreach ($ids as $id) {
+            EventLoop::cancel($id);
+        }
+        $ids = [];
     }
 
     private function publishOutput(string $topic, string $data): void
@@ -260,8 +286,6 @@ final class AiSessionHandler implements LoggerAwareInterface
     private function log(string $message, array $context = []): void
     {
         $this->logger->info($message, $context);
-        // Also write to stderr so it always appears in Upsun logs
-        // (prod monolog uses fingers_crossed which may swallow INFO)
         error_log('[AiSession] ' . $message . ' ' . json_encode($context));
     }
 

@@ -34,18 +34,12 @@ applications:
 
     hooks:
       build: |
-        set -e
-        if [ "$PLATFORM_ENVIRONMENT_TYPE" = "production" ]; then
-          composer install --no-dev --optimize-autoloader --no-interaction
-        else
-          composer install --optimize-autoloader --no-interaction
-        fi
-        php bin/console asset-map:compile
-        php bin/console importmap:install
+        set -x -e
+        curl -fs https://get.symfony.com/cloud/configurator | bash
+        symfony-build
       deploy: |
-        set -e
-        php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration
-        php bin/console cache:clear
+        set -x -e
+        symfony-deploy
       post_deploy: |
         set -e
         if [ "$PLATFORM_ENVIRONMENT_TYPE" != "production" ]; then
@@ -65,16 +59,24 @@ applications:
         source_path: audio
 
     web:
+      upstream:
+        socket_family: tcp
+        protocol: http
+      commands:
+        start: frankenphp php-server --listen=localhost:$PORT --root=$PLATFORM_DOCUMENT_ROOT index.php
       locations:
         '/':
           root: 'public'
           passthru: '/index.php'
           scripts: true
           allow: true
+          request_buffering:
+            enabled: false
 
     variables:
       env:
         APP_ENV: prod
+        APP_RUNTIME: Runtime\FrankenPhpSymfony\Runtime
         SEARCH_PROVIDER: postgres
       php:
         upload_max_filesize: 26M
