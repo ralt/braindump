@@ -30,7 +30,7 @@
 
 {% block body %}
     <div {{ stimulus_controller('claude-terminal', {
-        recordingId: recording.id|string,
+        recordingId: recording.id.toRfc4122,
         startUrl: path('api_claude_session_start', {id: recording.id}),
         mercureUrl: mercure('claude-session/placeholder', { subscribe: ['claude-session/*'] })|split('?')[0] ~ '?topic=',
     }) }}>
