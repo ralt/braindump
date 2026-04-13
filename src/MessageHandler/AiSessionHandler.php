@@ -278,11 +278,24 @@ final class AiSessionHandler implements LoggerAwareInterface
     {
         error_log('[AiSession] Publishing to topic=' . $topic . ' len=' . strlen($data));
         try {
-            $id = $this->hub->publish(new Update(
-                $topic,
-                json_encode(['output' => $data]),
-            ));
-            error_log('[AiSession] Published OK id=' . $id);
+            // DEBUG: bypass HubInterface — raw curl to isolate Symfony HTTP client issue
+            $secret = $_ENV['MERCURE_JWT_SECRET'] ?? getenv('MERCURE_JWT_SECRET');
+            $url = $_ENV['MERCURE_URL'] ?? getenv('MERCURE_URL');
+            $h = rtrim(strtr(base64_encode('{"typ":"JWT","alg":"HS256"}'), '+/', '-_'), '=');
+            $p = rtrim(strtr(base64_encode('{"mercure":{"publish":["*"]}}'), '+/', '-_'), '=');
+            $sig = rtrim(strtr(base64_encode(hash_hmac('sha256', "$h.$p", $secret, true)), '+/', '-_'), '=');
+
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_POST => true,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_HTTPHEADER => ["Authorization: Bearer $h.$p.$sig"],
+                CURLOPT_POSTFIELDS => 'topic=' . urlencode($topic) . '&data=' . urlencode(json_encode(['output' => $data])),
+            ]);
+            $r = curl_exec($ch);
+            $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            error_log('[AiSession] Published via curl HTTP=' . $code . ' body=' . $r);
         } catch (\Throwable $e) {
             error_log('[AiSession] Mercure publish error: ' . $e->getMessage());
         }
