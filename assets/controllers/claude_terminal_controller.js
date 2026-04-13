@@ -82,6 +82,10 @@ export default class extends Controller {
             }
 
             this.statusTarget.textContent = 'Running'
+
+            // Poll session status as fallback in case the worker crashes
+            // before publishing anything to Mercure
+            this.statusPoll = setInterval(() => this.checkSessionStatus(), 10000)
         } catch (err) {
             this.terminal.writeln(`\r\nConnection error: ${err.message}`)
             this.statusTarget.textContent = 'Error'
@@ -107,6 +111,33 @@ export default class extends Controller {
         }, 50)
     }
 
+    async checkSessionStatus() {
+        if (!this.sessionId) return
+        try {
+            const response = await fetch(`/api/claude-sessions/${this.sessionId}/status`)
+            if (!response.ok) return
+            const data = await response.json()
+            if (data.status === 'closed') {
+                this.terminal.writeln('\r\nSession closed (worker stopped).')
+                this.statusTarget.textContent = 'Closed'
+                this.stopPolling()
+                if (this.eventSource) {
+                    this.eventSource.close()
+                    this.eventSource = null
+                }
+            }
+        } catch {
+            // ignore fetch errors
+        }
+    }
+
+    stopPolling() {
+        if (this.statusPoll) {
+            clearInterval(this.statusPoll)
+            this.statusPoll = null
+        }
+    }
+
     async close() {
         if (this.sessionId) {
             try {
@@ -127,6 +158,7 @@ export default class extends Controller {
     }
 
     disconnect() {
+        this.stopPolling()
         if (this.eventSource) {
             this.eventSource.close()
         }

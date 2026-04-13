@@ -9,20 +9,25 @@ use App\Enum\ClaudeSessionStatus;
 use App\Message\StartClaudeSessionMessage;
 use App\Service\ApiKeyEncryptorInterface;
 use Doctrine\ORM\EntityManagerInterface;
-use Psr\Log\LoggerInterface;
+use Psr\Log\LoggerAwareInterface;
+use Psr\Log\LoggerAwareTrait;
+use Psr\Log\NullLogger;
 use Symfony\Component\Mercure\HubInterface;
 use Symfony\Component\Mercure\Update;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
 #[AsMessageHandler]
-final class ClaudeSessionHandler
+final class ClaudeSessionHandler implements LoggerAwareInterface
 {
+    use LoggerAwareTrait;
+
     public function __construct(
         private EntityManagerInterface $em,
         private HubInterface $hub,
         private ApiKeyEncryptorInterface $encryptor,
-        private LoggerInterface $logger,
-    ) {}
+    ) {
+        $this->logger = new NullLogger();
+    }
 
     public function __invoke(StartClaudeSessionMessage $message): void
     {

@@ -88,6 +88,14 @@ class ClaudeSessionController extends AbstractController
         ], Response::HTTP_CREATED);
     }
 
+    #[Route('/api/claude-sessions/{id}/status', name: 'api_claude_session_status', methods: ['GET'])]
+    public function status(ClaudeSession $session): JsonResponse
+    {
+        return $this->json([
+            'status' => $session->getStatus()->value,
+        ]);
+    }
+
     #[Route('/api/claude-sessions/{id}/input', name: 'api_claude_session_input', methods: ['POST'])]
     public function input(ClaudeSession $session, Request $request): JsonResponse
     {
