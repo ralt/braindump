@@ -50,12 +50,30 @@ final class RunCiHandler
             $activity->wait(null, null, 5);
             $this->logger->info('Branch created and deployed');
 
-            // Get SSH URL for the new environment
+            // Run source operation to update composer.lock
             $ciEnv = $project->getEnvironment($branchName);
             if ($ciEnv === false) {
                 $this->logger->error('Could not find CI environment after creation');
                 return;
             }
+
+            $this->logger->info('Running source operation to update dependencies...');
+            $result = $ciEnv->runSourceOperation('update-dependencies');
+            $activities = $result->getActivities();
+            foreach ($activities as $sourceActivity) {
+                $sourceActivity->wait(null, null, 5);
+            }
+            $this->logger->info('Source operation completed, waiting for rebuild...');
+
+            // Wait for any triggered rebuild to complete
+            $ciEnv->refresh();
+            foreach ($ciEnv->getActivities(0, 'environment.push') as $pushActivity) {
+                if (!$pushActivity->isComplete()) {
+                    $pushActivity->wait(null, null, 5);
+                }
+                break;
+            }
+            $this->logger->info('Rebuild completed');
 
             $sshUrl = $ciEnv->getSshUrl('app');
             $this->logger->info('Running tests via SSH', ['ssh' => $sshUrl]);

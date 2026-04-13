@@ -3,6 +3,15 @@ applications:
     type: 'php:8.4'
     source:
       root: '/'
+      operations:
+        update-dependencies:
+          command: |
+            set -e
+            composer update --lock --no-interaction
+            if ! git diff --quiet composer.lock; then
+              git add composer.lock
+              git commit -m "Update composer.lock"
+            fi
 
     build:
       flavor: none
