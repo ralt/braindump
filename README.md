@@ -1,6 +1,8 @@
 # Braindump
 
-A multi-user speech-to-text transcription web application built with Symfony. Record audio in your browser, transcribe it via OpenAI Whisper, search across all your transcriptions, share them with others, and start interactive Claude Code sessions to work with the content.
+Braindump is not a quick voice memo app. It's for the longer stuff — the 5-minute explanation of an architecture you're considering, the 15-minute walkthrough of a problem you're stuck on, the detailed brain dump you do when you need to get everything out of your head and into something searchable. The name is literal: dump your brain, then work with what comes out.
+
+Record audio in your browser, get it transcribed via OpenAI Whisper, search across all your transcriptions, share them with others, and start interactive Claude Code sessions to think through the content. Built with Symfony, deployed on Upsun.
 
 ## Features
 
@@ -8,7 +10,7 @@ A multi-user speech-to-text transcription web application built with Symfony. Re
 - **Automatic Transcription** — Audio is transcribed in the background via OpenAI Whisper through Symfony AI.
 - **Full-Text Search** — PostgreSQL full-text search across titles and transcriptions, with configurable OpenSearch backend.
 - **Sharing** — Share recordings with other users by email, with view or edit permissions (Google Docs-style).
-- **Claude Code Sessions** — Start an interactive Claude terminal session from your browser that reads your transcription. Each user provides their own Anthropic API key.
+- **Claude Code Sessions** — Start an interactive Claude terminal session from your browser that reads your transcription. Each user provides their own Anthropic API key, stored encrypted via Upsun Vault KMS.
 - **Admin Back-Office** — EasyAdmin dashboard for user management.
 
 ## Infrastructure Architecture
@@ -30,6 +32,10 @@ On Upsun, Mercure runs as a managed service on a dedicated subdomain, keeping it
 ### Why network storage for audio files
 
 Audio files need to be accessible by both the web application (which receives the upload) and the transcription worker (which reads the file to send to OpenAI). On Upsun, the web container and worker containers are separate processes that don't share a filesystem. The `network-storage` service provides a shared mount that both can access, solving this cleanly without needing to store files in the database or an external object store.
+
+### Why Vault KMS for API key encryption
+
+Each user provides their own Anthropic API key for Claude sessions. These keys are sensitive credentials that must be stored encrypted at rest. On Upsun, the application uses the managed Vault KMS service for transit encryption — the key never exists in plaintext in the database or in application config. The encryption key is managed by the platform, rotated independently, and never leaves the Vault service. Locally, a plaintext encryptor is used instead (swapped via Symfony's `when@prod` service configuration).
 
 ### Why PostgreSQL LISTEN/NOTIFY for the message queue
 
@@ -134,6 +140,7 @@ The `.upsun/config.yaml` defines the full deployment:
 - **PostgreSQL 16**: Primary database
 - **Mercure**: Managed real-time hub
 - **Network storage**: Shared audio file storage
+- **Vault KMS**: Transit encryption for user API keys
 
 ```bash
 upsun project:create
@@ -152,4 +159,5 @@ Set environment variables via `upsun variable:create`.
 - **PostgreSQL** with full-text search
 - **Stimulus + Turbo** for frontend interactivity
 - **xterm.js** for browser-based terminal (Claude sessions)
+- **Vault KMS** for API key encryption (transit encryption on Upsun)
 - **Upsun** (formerly Platform.sh) for deployment
