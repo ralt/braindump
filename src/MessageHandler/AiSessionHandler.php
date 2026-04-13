@@ -57,7 +57,7 @@ final class AiSessionHandler implements LoggerAwareInterface
         error_log('[AiSession] Hub URL=' . $this->hub->getUrl());
         error_log('[AiSession] Hub JWT=' . substr($this->hub->getProvider()->getJwt(), 0, 50) . '...');
         error_log('[AiSession] MERCURE_URL env=' . (getenv('MERCURE_URL') ?: 'NOT SET'));
-        error_log('[AiSession] MERCURE_JWT_SECRET env=' . (getenv('MERCURE_JWT_SECRET') ? 'SET (' . strlen(getenv('MERCURE_JWT_SECRET')) . ' chars)' : 'NOT SET'));
+        error_log('[AiSession] MERCURE_JWT_SECRET env=' . (getenv('MERCURE_JWT_SECRET') ?: 'NOT SET'));
 
         // Create temp directory for the session
         $tmpDir = sys_get_temp_dir() . '/ai-sessions/' . $session->getId();
