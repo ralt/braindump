@@ -52,7 +52,7 @@ final class TranscribeRecordingHandler
             $audio = Audio::fromFile($audioPath);
 
             $result = $this->platform->invoke('whisper-1', $audio);
-            $text = $result->getContent();
+            $text = $result->asText();
 
             $recording->setTranscription($text);
             $recording->setStatus(RecordingStatus::Completed);
