@@ -7,7 +7,6 @@ use Platformsh\Client\Connection\Connector;
 use Platformsh\Client\PlatformClient;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
-use Symfony\Component\Process\Process;
 
 #[AsMessageHandler]
 final class RunCiHandler
@@ -50,59 +49,64 @@ final class RunCiHandler
             $activity->wait(null, null, 5);
             $this->logger->info('Branch created and deployed');
 
-            // Run source operation to update composer.lock
             $ciEnv = $project->getEnvironment($branchName);
             if ($ciEnv === false) {
                 $this->logger->error('Could not find CI environment after creation');
                 return;
             }
 
+            // Run source operation to update composer.lock
             $this->logger->info('Running source operation to update dependencies...');
             $result = $ciEnv->runSourceOperation('update-dependencies');
-            $activities = $result->getActivities();
-            foreach ($activities as $sourceActivity) {
+            foreach ($result->getActivities() as $sourceActivity) {
                 $sourceActivity->wait(null, null, 5);
             }
-            $this->logger->info('Source operation completed, waiting for rebuild...');
+            $this->logger->info('Source operation completed');
 
-            // Wait for any triggered rebuild to complete
+            // Set CI_RUN=1 env var — this triggers a rebuild that includes
+            // dev dependencies and runs phpunit during the build phase
+            $this->logger->info('Setting CI_RUN variable to trigger test build...');
+            $ciEnv->setVariable('env:CI_RUN', '1');
+
+            // Wait for the rebuild triggered by the variable change
+            sleep(5); // Give Upsun a moment to start the activity
             $ciEnv->refresh();
-            foreach ($ciEnv->getActivities(0, 'environment.push') as $pushActivity) {
-                if (!$pushActivity->isComplete()) {
-                    $pushActivity->wait(null, null, 5);
+            $buildActivity = null;
+            foreach ($ciEnv->getActivities() as $act) {
+                if (!$act->isComplete()) {
+                    $buildActivity = $act;
+                    break;
                 }
-                break;
             }
-            $this->logger->info('Rebuild completed');
 
-            $sshUrl = $ciEnv->getSshUrl('app');
-            $this->logger->info('Running tests via SSH', ['ssh' => $sshUrl]);
+            if ($buildActivity !== null) {
+                $this->logger->info('Waiting for CI build...', ['activity' => $buildActivity->id]);
+                $buildActivity->wait(null, null, 5);
+                $buildActivity->refresh();
 
-            // Run tests via SSH
-            $process = new Process(['ssh', '-o', 'StrictHostKeyChecking=no', $sshUrl, 'php', 'bin/phpunit', '--colors=never']);
-            $process->setTimeout(300);
-            $process->run();
+                if ($buildActivity->result === 'success') {
+                    $this->logger->info('CI passed, merging to main');
+                    $ciEnv->refresh();
+                    $mergeActivity = $ciEnv->merge();
+                    $mergeActivity->wait(null, null, 5);
 
-            if ($process->isSuccessful()) {
-                $this->logger->info('CI passed, merging to main');
-                $mergeActivity = $ciEnv->merge();
-                $mergeActivity->wait(null, null, 5);
-
-                // Deactivate and delete
-                $ciEnv->refresh();
-                if ($ciEnv->isActive()) {
-                    $deactivateActivity = $ciEnv->deactivate();
-                    $deactivateActivity->wait(null, null, 5);
+                    // Deactivate and delete
+                    $ciEnv->refresh();
+                    if ($ciEnv->isActive()) {
+                        $deactivateActivity = $ciEnv->deactivate();
+                        $deactivateActivity->wait(null, null, 5);
+                    }
+                    $ciEnv->refresh();
+                    $ciEnv->delete();
+                    $this->logger->info('Merged and cleaned up');
+                } else {
+                    $this->logger->error('CI build failed', [
+                        'branch' => $branchName,
+                        'result' => $buildActivity->result,
+                    ]);
                 }
-                $ciEnv->refresh();
-                $ciEnv->delete();
-                $this->logger->info('Merged and cleaned up');
             } else {
-                $this->logger->error('CI failed, keeping environment for debugging', [
-                    'branch' => $branchName,
-                    'output' => $process->getOutput(),
-                    'error' => $process->getErrorOutput(),
-                ]);
+                $this->logger->error('No rebuild activity found after setting CI_RUN');
             }
         } catch (\Throwable $e) {
             $this->logger->error('CI run failed with exception', [
