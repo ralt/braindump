@@ -193,11 +193,12 @@ export default class extends Controller {
             this.animationId = requestAnimationFrame(draw)
             this.analyser.getByteTimeDomainData(dataArray)
 
-            ctx.fillStyle = '#f9fafb'
+            const styles = getComputedStyle(document.documentElement)
+            ctx.fillStyle = styles.getPropertyValue('--waveform-bg').trim() || '#f0f0f4'
             ctx.fillRect(0, 0, width, height)
 
             ctx.lineWidth = 2
-            ctx.strokeStyle = '#4361ee'
+            ctx.strokeStyle = styles.getPropertyValue('--accent').trim() || '#4361ee'
             ctx.beginPath()
 
             const sliceWidth = width / bufferLength
