@@ -57,16 +57,7 @@ class UserCrudController extends AbstractCrudController
 
     private function hashPassword(User $user): void
     {
-        // Use reflection to get plainPassword from form data
-        $request = $this->container->get('request_stack')->getCurrentRequest();
-        $formData = $request?->request->all();
-
-        // Navigate form data to find plainPassword
-        $plainPassword = null;
-        if (isset($formData['User']['plainPassword'])) {
-            $plainPassword = $formData['User']['plainPassword'];
-        }
-
+        $plainPassword = $user->getPlainPassword();
         if ($plainPassword) {
             $user->setPassword($this->passwordHasher->hashPassword($user, $plainPassword));
         }

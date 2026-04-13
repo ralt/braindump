@@ -3,6 +3,7 @@
 namespace App\Controller\Admin;
 
 use App\Entity\Recording;
+use App\Enum\RecordingStatus;
 use EasyCorp\Bundle\EasyAdminBundle\Config\Action;
 use EasyCorp\Bundle\EasyAdminBundle\Config\Actions;
 use EasyCorp\Bundle\EasyAdminBundle\Config\Crud;
@@ -38,7 +39,7 @@ class RecordingCrudController extends AbstractCrudController
         yield IdField::new('id')->hideOnForm();
         yield TextField::new('title');
         yield AssociationField::new('owner');
-        yield TextField::new('status')->hideOnForm();
+        yield ChoiceField::new('status')->hideOnForm()->setChoices(RecordingStatus::cases());
         yield IntegerField::new('fileSizeBytes', 'Size (bytes)')->hideOnForm();
         yield TextareaField::new('transcription')->hideOnIndex();
         yield DateTimeField::new('createdAt')->hideOnForm();
