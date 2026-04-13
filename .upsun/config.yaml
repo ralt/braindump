@@ -127,9 +127,12 @@ services:
     configuration:
       endpoints:
         api-keys:
-          - policy: transit
+          - policy: encrypt
             key: api-keys
-            type: aes256-gcm96
+            type: encrypt
+          - policy: decrypt
+            key: api-keys
+            type: encrypt
 
 routes:
   'https://{default}/':
