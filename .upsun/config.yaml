@@ -27,7 +27,6 @@ applications:
         composer install --no-dev --optimize-autoloader --no-interaction
         php bin/console asset-map:compile
         php bin/console importmap:install
-        curl -fsSL https://raw.githubusercontent.com/platformsh/cli/main/installer.sh | VENDOR=upsun bash
       deploy: |
         set -e
         php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration

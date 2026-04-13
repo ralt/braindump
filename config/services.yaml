@@ -40,3 +40,8 @@ services:
 
     App\Search\SearchProviderInterface:
         factory: ['@App\Search\SearchProviderFactory', 'create']
+
+    App\MessageHandler\RunCiHandler:
+        arguments:
+            $upsunApiToken: '%env(UPSUN_API_TOKEN)%'
+            $upsunProjectId: '%env(UPSUN_PROJECT_ID)%'
