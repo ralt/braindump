@@ -56,6 +56,20 @@ class ClaudeSessionController extends AbstractController
             return $this->json(['error' => 'Anthropic API key not configured'], Response::HTTP_BAD_REQUEST);
         }
 
+        // Prevent duplicate sessions
+        $existing = $this->em->getRepository(ClaudeSession::class)->findOneBy([
+            'recording' => $recording,
+            'user' => $user,
+            'status' => [ClaudeSessionStatus::Starting, ClaudeSessionStatus::Running],
+        ]);
+
+        if ($existing) {
+            return $this->json([
+                'sessionId' => $existing->getId(),
+                'mercureTopic' => 'claude-session/' . $existing->getId(),
+            ]);
+        }
+
         $session = new ClaudeSession();
         $session->setRecording($recording);
         $session->setUser($user);

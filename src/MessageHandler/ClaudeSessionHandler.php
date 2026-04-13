@@ -65,7 +65,16 @@ final class ClaudeSessionHandler
         }
 
         // Start Claude process
-        $env = array_merge($_ENV, [
+        $claudeBin = trim(shell_exec('which claude') ?? '');
+        if ($claudeBin === '') {
+            $this->publishOutput($topic, "\r\nError: claude binary not found in PATH\r\n");
+            $session->setStatus(ClaudeSessionStatus::Closed);
+            $session->setClosedAt(new \DateTimeImmutable());
+            $this->em->flush();
+            return;
+        }
+
+        $env = array_merge($_SERVER, $_ENV, [
             'ANTHROPIC_API_KEY' => $apiKey,
             'TMPDIR' => $tmpDir,
         ]);
@@ -76,9 +85,15 @@ final class ClaudeSessionHandler
             2 => ['pipe', 'w'], // stderr
         ];
 
+        $initialPrompt = sprintf(
+            'Read the transcription in %s and summarize what it contains, then wait for my instructions.',
+            $transcriptionPath
+        );
+
         $cmd = sprintf(
-            'claude --print "Read the transcription in %s and summarize what it contains, then wait for my instructions."',
-            escapeshellarg($transcriptionPath)
+            '%s --verbose %s',
+            escapeshellarg($claudeBin),
+            escapeshellarg($initialPrompt)
         );
 
         $process = proc_open($cmd, $descriptors, $pipes, $tmpDir, $env);
