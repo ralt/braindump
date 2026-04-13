@@ -1,6 +1,7 @@
 import { Controller } from '@hotwired/stimulus'
 import { Terminal } from 'xterm'
 import { FitAddon } from '@xterm/addon-fit'
+import 'xterm/css/xterm.min.css'
 
 export default class extends Controller {
     static targets = ['terminal', 'status', 'closeBtn']
@@ -49,7 +50,11 @@ export default class extends Controller {
     }
 
     async startSession() {
+        if (this._starting) return
+        this._starting = true
+
         try {
+            // 1. Create the session (but don't dispatch to worker yet)
             const response = await fetch(this.startUrlValue, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -65,10 +70,10 @@ export default class extends Controller {
             const data = await response.json()
             this.sessionId = data.sessionId
 
-            // Subscribe to Mercure for output
+            // 2. Subscribe to Mercure BEFORE triggering the worker
             const topic = encodeURIComponent(data.mercureTopic)
             const url = this.mercureUrlValue + topic
-            this.eventSource = new EventSource(url)
+            this.eventSource = new EventSource(url, { withCredentials: true })
 
             this.eventSource.onmessage = (event) => {
                 const payload = JSON.parse(event.data)
@@ -80,6 +85,19 @@ export default class extends Controller {
             this.eventSource.onerror = () => {
                 this.statusTarget.textContent = 'Disconnected'
             }
+
+            // 3. Wait for EventSource to connect, then tell the worker to start
+            await new Promise((resolve, reject) => {
+                this.eventSource.addEventListener('open', resolve, { once: true })
+                setTimeout(reject, 5000)
+            }).catch(() => {
+                this.terminal.writeln('\r\nWarning: Mercure connection slow, proceeding anyway...')
+            })
+
+            await fetch(`/api/ai-sessions/${this.sessionId}/dispatch`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+            })
 
             this.statusTarget.textContent = 'Running'
 

@@ -181,7 +181,10 @@ final class AiSessionHandler implements LoggerAwareInterface
         $fifo = null;
         $callbackIds[] = EventLoop::repeat(0.05, function (string $id) use (&$fifo, $fifoPath, $ptyMaster, $process, &$callbackIds) {
             if ($fifo === null && file_exists($fifoPath)) {
-                $fifo = @fopen($fifoPath, 'r');
+                // Use 'r+' (read-write) to avoid blocking: 'r' on a FIFO
+                // blocks until a writer opens the other end, which would
+                // stall the entire event loop.
+                $fifo = @fopen($fifoPath, 'r+');
                 if ($fifo) {
                     stream_set_blocking($fifo, false);
                 }
@@ -278,8 +281,8 @@ final class AiSessionHandler implements LoggerAwareInterface
                 $topic,
                 json_encode(['output' => $data]),
             ));
-        } catch (\Throwable) {
-            // Mercure may not be available
+        } catch (\Throwable $e) {
+            error_log('[AiSession] Mercure publish error: ' . $e->getMessage());
         }
     }
 

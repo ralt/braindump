@@ -15,6 +15,8 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Mercure\Authorization;
 use Symfony\Component\Messenger\MessageBusInterface;
+use Symfony\Component\Mercure\HubInterface;
+use Symfony\Component\Mercure\Update;
 use Symfony\Component\Routing\Attribute\Route;
 
 class AiSessionController extends AbstractController
@@ -24,6 +26,7 @@ class AiSessionController extends AbstractController
         private MessageBusInterface $bus,
         private ApiKeyEncryptorInterface $encryptor,
         private Authorization $mercureAuthorization,
+        private HubInterface $hub,
     ) {}
 
     #[Route('/recordings/{id}/ai-session', name: 'app_ai_session')]
@@ -108,16 +111,37 @@ class AiSessionController extends AbstractController
         $this->em->persist($session);
         $this->em->flush();
 
-        $this->bus->dispatch(new StartAiSessionMessage(
-            $session->getId(),
-            $recording->getId(),
-            $user->getId(),
-        ));
-
         return $this->json([
             'sessionId' => $session->getId(),
             'mercureTopic' => 'ai-session/' . $session->getId(),
         ], Response::HTTP_CREATED);
+    }
+
+    #[Route('/api/ai-sessions/{id}/dispatch', name: 'api_ai_session_dispatch', methods: ['POST'])]
+    public function dispatch(AiSession $session): JsonResponse
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+
+        if (!$session->getUser()->getId()->equals($user->getId())) {
+            throw $this->createAccessDeniedException();
+        }
+
+        if ($session->getStatus() !== AiSessionStatus::Starting) {
+            return $this->json(['error' => 'Session already dispatched'], Response::HTTP_CONFLICT);
+        }
+
+        // Immediate feedback while the worker picks up the message
+        $topic = 'ai-session/' . $session->getId();
+        $this->hub->publish(new Update($topic, json_encode(['output' => "Queuing session...\r\n"])));
+
+        $this->bus->dispatch(new StartAiSessionMessage(
+            $session->getId(),
+            $session->getRecording()->getId(),
+            $user->getId(),
+        ));
+
+        return $this->json(['ok' => true]);
     }
 
     #[Route('/api/ai-sessions/{id}/status', name: 'api_ai_session_status', methods: ['GET'])]
