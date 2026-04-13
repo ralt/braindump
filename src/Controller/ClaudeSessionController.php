@@ -54,12 +54,23 @@ class ClaudeSessionController extends AbstractController
             return $this->json(['error' => 'Anthropic API key not configured'], Response::HTTP_BAD_REQUEST);
         }
 
-        // Prevent duplicate sessions
-        $existing = $this->em->getRepository(ClaudeSession::class)->findOneBy([
-            'recording' => $recording,
-            'user' => $user,
-            'status' => [ClaudeSessionStatus::Starting, ClaudeSessionStatus::Running],
-        ]);
+        // Prevent duplicate sessions — only consider sessions created in the last 5 minutes
+        // to avoid stale sessions from crashed workers blocking new ones forever
+        $cutoff = new \DateTimeImmutable('-5 minutes');
+        $existing = $this->em->createQueryBuilder()
+            ->select('s')
+            ->from(ClaudeSession::class, 's')
+            ->where('s.recording = :recording')
+            ->andWhere('s.user = :user')
+            ->andWhere('s.status IN (:statuses)')
+            ->andWhere('s.createdAt > :cutoff')
+            ->setParameter('recording', $recording)
+            ->setParameter('user', $user)
+            ->setParameter('statuses', [ClaudeSessionStatus::Starting, ClaudeSessionStatus::Running])
+            ->setParameter('cutoff', $cutoff)
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
 
         if ($existing) {
             return $this->json([
@@ -67,6 +78,22 @@ class ClaudeSessionController extends AbstractController
                 'mercureTopic' => 'claude-session/' . $existing->getId(),
             ]);
         }
+
+        // Close any stale starting/running sessions
+        $this->em->createQueryBuilder()
+            ->update(ClaudeSession::class, 's')
+            ->set('s.status', ':closed')
+            ->set('s.closedAt', ':now')
+            ->where('s.recording = :recording')
+            ->andWhere('s.user = :user')
+            ->andWhere('s.status IN (:statuses)')
+            ->setParameter('closed', ClaudeSessionStatus::Closed)
+            ->setParameter('now', new \DateTimeImmutable())
+            ->setParameter('recording', $recording)
+            ->setParameter('user', $user)
+            ->setParameter('statuses', [ClaudeSessionStatus::Starting, ClaudeSessionStatus::Running])
+            ->getQuery()
+            ->execute();
 
         $session = new ClaudeSession();
         $session->setRecording($recording);
