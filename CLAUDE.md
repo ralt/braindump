@@ -6,11 +6,13 @@ Symfony 7.4 / PHP 8.4 speech-to-text web app. Browser audio recording, OpenAI Wh
 
 ## Subagent Workflow (REQUIRED)
 
-When spawning subagents for code changes, you **MUST** use `isolation: "worktree"` so the agent works on an isolated git worktree with its own branch. The agent should:
+When spawning subagents for code changes, prefer `isolation: "worktree"` so each agent works on its own branch. If worktrees are unavailable, the agent should:
 
-1. Make all changes on the worktree branch
-2. Commit the changes
-3. The worktree branch can then be merged into `main` from the main repo
+1. Clone the repo to a temp directory under `/tmp/braindump-agent-{task}/`
+2. Create a feature branch (`git checkout -b feature/{task-name}`)
+3. Make all changes and commit on that branch
+4. Push the branch back to the original repo (`git push origin feature/{task-name}`)
+5. The parent then merges the branch into `main`
 
 Never have subagents modify the main working directory directly.
 
