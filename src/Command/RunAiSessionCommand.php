@@ -145,7 +145,6 @@ final class RunAiSessionCommand extends Command
                 '%s'
                 . ' --ro-bind / /'
                 . ' --dev /dev'
-                . ' --proc /proc'
                 . ' --tmpfs /tmp'
                 . ' --bind %s %s'
                 . ' --bind %s /app/.pi'
