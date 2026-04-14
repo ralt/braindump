@@ -53,12 +53,6 @@ final class AiSessionHandler implements LoggerAwareInterface
 
         $topic = 'ai-session/' . $session->getId();
 
-        // DEBUG: log Hub URL and JWT to diagnose Mercure publish issue
-        error_log('[AiSession] Hub URL=' . $this->hub->getUrl());
-        error_log('[AiSession] Hub JWT=' . $this->hub->getProvider()->getJwt());
-        error_log('[AiSession] MERCURE_URL env=' . (getenv('MERCURE_URL') ?: 'NOT SET'));
-        error_log('[AiSession] MERCURE_JWT_SECRET env=' . (getenv('MERCURE_JWT_SECRET') ?: 'NOT SET'));
-
         // Create temp directory for the session
         $tmpDir = sys_get_temp_dir() . '/ai-sessions/' . $session->getId();
         if (!is_dir($tmpDir)) {
@@ -296,22 +290,14 @@ final class AiSessionHandler implements LoggerAwareInterface
 
     private function publishOutput(string $topic, string $data): void
     {
-        // DEBUG: raw curl to test if the handler context is the issue
-        $jwt = $this->hub->getProvider()->getJwt();
-        $url = $this->hub->getUrl();
-        $body = 'topic=' . urlencode($topic) . '&data=' . urlencode(json_encode(['output' => $data]));
-
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_POST => true,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER => ["Authorization: Bearer $jwt", 'Content-Type: application/x-www-form-urlencoded'],
-            CURLOPT_POSTFIELDS => $body,
-        ]);
-        $r = curl_exec($ch);
-        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        error_log("[AiSession] curl publish HTTP=$code body=$r");
+        try {
+            $this->hub->publish(new Update(
+                $topic,
+                json_encode(['output' => $data]),
+            ));
+        } catch (\Throwable $e) {
+            error_log('[AiSession] Mercure publish error: ' . $e->getMessage());
+        }
     }
 
     private function log(string $message, array $context = []): void

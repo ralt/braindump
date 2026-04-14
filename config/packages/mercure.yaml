@@ -6,4 +6,3 @@ mercure:
             jwt:
                 secret: '%env(MERCURE_JWT_SECRET)%'
                 publish: '*'
-                subscribe: '*'
