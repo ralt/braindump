@@ -105,7 +105,9 @@ final class RunAiSessionCommand extends Command
         }
 
         // Per-user persistent directory for agent state across sessions
-        $userDir = '/.pi/' . $user->getId();
+        // Use /tmp since the app filesystem is read-only on Upsun;
+        // /.pi mount is only available on the worker container itself
+        $userDir = sys_get_temp_dir() . '/pi-users/' . $user->getId();
         if (!is_dir($userDir)) {
             mkdir($userDir, 0755, true);
         }
@@ -141,7 +143,6 @@ final class RunAiSessionCommand extends Command
                 . ' --dev /dev'
                 . ' --proc /proc'
                 . ' --tmpfs /tmp'
-                . ' --tmpfs /.pi'
                 . ' --bind %s /session'
                 . ' --bind %s /user'
                 . ' --chdir /session'
