@@ -290,14 +290,22 @@ final class AiSessionHandler implements LoggerAwareInterface
 
     private function publishOutput(string $topic, string $data): void
     {
-        try {
-            $this->hub->publish(new Update(
-                $topic,
-                json_encode(['output' => $data]),
-            ));
-        } catch (\Throwable $e) {
-            error_log('[AiSession] Mercure publish error: ' . $e->getMessage());
-        }
+        // DEBUG: manual JWT (no exp, no subscribe) to match the working curl test
+        $secret = getenv('MERCURE_JWT_SECRET');
+        $url = $this->hub->getUrl();
+        $h = rtrim(strtr(base64_encode('{"typ":"JWT","alg":"HS256"}'), '+/', '-_'), '=');
+        $p = rtrim(strtr(base64_encode('{"mercure":{"publish":["*"]}}'), '+/', '-_'), '=');
+        $sig = rtrim(strtr(base64_encode(hash_hmac('sha256', "$h.$p", $secret, true)), '+/', '-_'), '=');
+
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => ["Authorization: Bearer $h.$p.$sig", 'Content-Type: application/x-www-form-urlencoded'],
+            CURLOPT_POSTFIELDS => 'topic=' . urlencode($topic) . '&data=' . urlencode(json_encode(['output' => $data])),
+        ]);
+        curl_exec($ch);
+        curl_close($ch);
     }
 
     private function log(string $message, array $context = []): void
