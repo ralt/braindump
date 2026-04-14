@@ -404,6 +404,10 @@
                 <h3>Vault KMS for API Keys</h3>
                 <p>User API keys are encrypted at rest via Upsun's managed Vault KMS transit encryption. The encryption key never leaves the vault.</p>
             </div>
+            <div class="arch-card">
+                <h3>Bubblewrap for Session Isolation</h3>
+                <p>Each pi.dev session runs inside a bubblewrap sandbox with Linux namespaces. Users get their own isolated filesystem view &mdash; they can't see other users' data, temp files, or processes. The rest of the system is read-only.</p>
+            </div>
         </div>
     </section>
 
