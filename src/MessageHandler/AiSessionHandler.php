@@ -27,7 +27,7 @@ final readonly class AiSessionHandler
         }
 
         $cmd = sprintf(
-            'nohup %s %s/bin/console app:run-ai-session %s %s %s > /dev/null 2>&1 &',
+            'nohup %s %s/bin/console app:run-ai-session %s %s %s &',
             \PHP_BINARY,
             escapeshellarg($this->projectDir),
             escapeshellarg((string) $message->sessionId),
