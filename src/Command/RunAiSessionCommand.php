@@ -183,6 +183,7 @@ final class RunAiSessionCommand extends Command
         $process = proc_open($cmd, $descriptors, $pipes, $tmpDir);
 
         if (!is_resource($process)) {
+            error_log('[AiSession] proc_open failed for cmd: ' . $cmd);
             $this->publishOutput($topic, "\r\nError: Could not start pi process\r\n");
             $session->setStatus(AiSessionStatus::Closed);
             $session->setClosedAt(new \DateTimeImmutable());
