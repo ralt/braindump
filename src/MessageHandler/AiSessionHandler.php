@@ -41,6 +41,6 @@ final readonly class AiSessionHandler
         ]);
 
         error_log('[AiSession] Launching: ' . $cmd);
-        exec($cmd);
+        pclose(popen($cmd, 'r'));
     }
 }
