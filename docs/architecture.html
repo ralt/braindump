@@ -204,16 +204,6 @@
             border: 1px solid var(--border);
             white-space: pre;
         }
-        .flow-label {
-            color: #a5b4fc;
-        }
-        .flow-arrow {
-            color: #6b7280;
-        }
-        .flow-component {
-            color: #86efac;
-        }
-
         /* Decision table */
         .decision-table {
             width: 100%;
@@ -391,23 +381,6 @@
 
             <div class="component">
                 <div class="component-header">
-                    <h3>Bubblewrap (bwrap)</h3>
-                    <span class="badge badge-required">Required (prod)</span>
-                </div>
-                <p>Linux namespace sandbox for pi.dev processes. Each user's AI session runs in an isolated filesystem view:</p>
-                <ul class="uses-list">
-                    <li>Read-only bind of <code>/</code> &mdash; the process can read system binaries but can't modify anything</li>
-                    <li><code>/app/.pi/{userId}/</code> mapped to <code>/app/.pi/</code> inside the sandbox &mdash; pi.dev sees its standard <code>~/.pi/</code> path but can only access that user's data</li>
-                    <li><code>--tmpfs /tmp</code> isolates temp files between sessions</li>
-                    <li><code>--unshare-pid</code> hides other processes</li>
-                </ul>
-                <div class="alternative">
-                    <strong>Alternative (dev):</strong> Unsandboxed fallback. The command detects whether <code>bwrap</code> is in PATH and skips sandboxing if absent.
-                </div>
-            </div>
-
-            <div class="component">
-                <div class="component-header">
                     <h3>OpenSearch</h3>
                     <span class="badge badge-optional">Optional</span>
                 </div>
@@ -439,46 +412,45 @@
 
         <h3 style="margin-bottom: 0.5rem;">Transcription Flow</h3>
         <p>From browser audio recording to searchable text.</p>
-        <div class="flow-diagram"><span class="flow-label">Browser</span>                    <span class="flow-label">Web Container</span>              <span class="flow-label">Worker</span>                    <span class="flow-label">OpenAI</span>
-  <span class="flow-arrow">|</span>                              <span class="flow-arrow">|</span>                            <span class="flow-arrow">|</span>                          <span class="flow-arrow">|</span>
-  <span class="flow-arrow">|</span><span class="flow-arrow">--POST /recordings/new------></span><span class="flow-arrow">|</span>                            <span class="flow-arrow">|</span>                          <span class="flow-arrow">|</span>
-  <span class="flow-arrow">|</span>                 save audio<span class="flow-arrow">--></span><span class="flow-component">Network Storage</span>          <span class="flow-arrow">|</span>                          <span class="flow-arrow">|</span>
-  <span class="flow-arrow">|</span>                 dispatch<span class="flow-arrow">----></span><span class="flow-component">PostgreSQL (Messenger)</span>   <span class="flow-arrow">|</span>                          <span class="flow-arrow">|</span>
-  <span class="flow-arrow">|</span><span class="flow-arrow"><--redirect-------------------</span><span class="flow-arrow">|</span>                            <span class="flow-arrow">|</span>                          <span class="flow-arrow">|</span>
-  <span class="flow-arrow">|</span>                              <span class="flow-arrow">|</span>           LISTEN/NOTIFY<span class="flow-arrow">--></span><span class="flow-arrow">|</span>                          <span class="flow-arrow">|</span>
-  <span class="flow-arrow">|</span><span class="flow-arrow"><--SSE: "transcribing"--------</span><span class="flow-component">Mercure</span><span class="flow-arrow"><---------publish--</span><span class="flow-arrow">|</span>                          <span class="flow-arrow">|</span>
-  <span class="flow-arrow">|</span>                              <span class="flow-arrow">|</span>                    read audio<span class="flow-arrow">--></span><span class="flow-component">Network Storage</span>    <span class="flow-arrow">|</span>
-  <span class="flow-arrow">|</span>                              <span class="flow-arrow">|</span>                            <span class="flow-arrow">|</span><span class="flow-arrow">--Whisper API----------></span><span class="flow-arrow">|</span>
-  <span class="flow-arrow">|</span>                              <span class="flow-arrow">|</span>                            <span class="flow-arrow">|</span><span class="flow-arrow"><--transcription text------</span><span class="flow-arrow">|</span>
-  <span class="flow-arrow">|</span>                              <span class="flow-arrow">|</span>                    save text<span class="flow-arrow">--></span><span class="flow-component">PostgreSQL</span>             <span class="flow-arrow">|</span>
-  <span class="flow-arrow">|</span><span class="flow-arrow"><--SSE: "completed"----------</span><span class="flow-component">Mercure</span><span class="flow-arrow"><---------publish--</span><span class="flow-arrow">|</span>                          <span class="flow-arrow">|</span></div>
+        <div class="flow-diagram">Browser                  Web Container            Worker                  OpenAI
+  |                            |                          |                        |
+  |--POST /recordings/new----&gt;|                          |                        |
+  |               save audio--&gt;Network Storage            |                        |
+  |               dispatch----&gt;PostgreSQL (Messenger)     |                        |
+  |&lt;--redirect----------------|                          |                        |
+  |                            |         LISTEN/NOTIFY--&gt;|                        |
+  |&lt;--SSE: "transcribing"------Mercure&lt;-------publish--|                        |
+  |                            |                  read audio--&gt;Network Storage    |
+  |                            |                          |--Whisper API--------&gt;|
+  |                            |                          |&lt;--transcription text--|
+  |                            |                  save text--&gt;PostgreSQL          |
+  |&lt;--SSE: "completed"--------Mercure&lt;-------publish--|                        |</div>
 
         <h3 style="margin-top: 2.5rem; margin-bottom: 0.5rem;">AI Session Flow</h3>
         <p>From starting a session to interactive terminal I/O.</p>
-        <div class="flow-diagram"><span class="flow-label">Browser</span>                    <span class="flow-label">Web Container</span>              <span class="flow-label">Worker</span>
-  <span class="flow-arrow">|</span>                              <span class="flow-arrow">|</span>                            <span class="flow-arrow">|</span>
-  <span class="flow-arrow">|</span><span class="flow-arrow">--POST /ai-session/start---></span><span class="flow-arrow">|</span> Create AiSession entity   <span class="flow-arrow">|</span>
-  <span class="flow-arrow">|</span><span class="flow-arrow"><--sessionId, topic---------</span><span class="flow-arrow">|</span>                            <span class="flow-arrow">|</span>
-  <span class="flow-arrow">|</span>                              <span class="flow-arrow">|</span>                            <span class="flow-arrow">|</span>
-  <span class="flow-arrow">|</span><span class="flow-arrow">--EventSource subscribe---></span><span class="flow-arrow">|</span>          <span class="flow-component">Mercure</span>           <span class="flow-arrow">|</span>
-  <span class="flow-arrow">|</span>                              <span class="flow-arrow">|</span>            <span class="flow-arrow">^</span>              <span class="flow-arrow">|</span>
-  <span class="flow-arrow">|</span><span class="flow-arrow">--POST /ai-session/dispatch></span><span class="flow-arrow">|</span>            <span class="flow-arrow">|</span>              <span class="flow-arrow">|</span>
-  <span class="flow-arrow">|</span>                    publish<span class="flow-arrow">--+--</span>"Queuing"<span class="flow-arrow">--+</span>              <span class="flow-arrow">|</span>
-  <span class="flow-arrow">|</span><span class="flow-arrow"><--SSE: "Queuing session"---</span><span class="flow-arrow">|</span>                            <span class="flow-arrow">|</span>
-  <span class="flow-arrow">|</span>               bus.dispatch<span class="flow-arrow">--+--</span><span class="flow-component">PostgreSQL (Messenger)</span><span class="flow-arrow">--></span><span class="flow-arrow">|</span>
-  <span class="flow-arrow">|</span>                              <span class="flow-arrow">|</span>             exec nohup<span class="flow-arrow">--></span>[RunAiSessionCommand]
-  <span class="flow-arrow">|</span>                              <span class="flow-arrow">|</span>                            <span class="flow-arrow">|</span> <span class="flow-component">bwrap sandbox</span>
-  <span class="flow-arrow">|</span>                              <span class="flow-arrow">|</span>                            <span class="flow-arrow">|</span> +-- pi.dev (PTY)
-  <span class="flow-arrow">|</span>                              <span class="flow-arrow">|</span>                            <span class="flow-arrow">|</span> +-- Revolt event loop
-  <span class="flow-arrow">|</span>                              <span class="flow-arrow">|</span>                            <span class="flow-arrow">|</span> +-- pg LISTEN
-  <span class="flow-arrow">|</span><span class="flow-arrow"><--SSE: terminal output-----</span><span class="flow-component">Mercure</span><span class="flow-arrow"><-----------publish--</span><span class="flow-arrow">|</span>
-  <span class="flow-arrow">|</span>                              <span class="flow-arrow">|</span>                            <span class="flow-arrow">|</span>
-  <span class="flow-arrow">|</span><span class="flow-arrow">--POST /input--------------></span><span class="flow-arrow">|</span>                            <span class="flow-arrow">|</span>
-  <span class="flow-arrow">|</span>                NOTIFY<span class="flow-arrow">-------+--</span><span class="flow-component">PostgreSQL</span><span class="flow-arrow">-------------></span><span class="flow-arrow">|</span><span class="flow-arrow">--></span>fwrite(PTY)
-  <span class="flow-arrow">|</span>                              <span class="flow-arrow">|</span>                            <span class="flow-arrow">|</span>
-  <span class="flow-arrow">|</span><span class="flow-arrow">--DELETE /ai-session-------></span><span class="flow-arrow">|</span>                            <span class="flow-arrow">|</span>
-  <span class="flow-arrow">|</span>                NOTIFY \x04<span class="flow-arrow">--+--</span><span class="flow-component">PostgreSQL</span><span class="flow-arrow">-------------></span><span class="flow-arrow">|</span><span class="flow-arrow">--></span>proc_terminate
-  <span class="flow-arrow">|</span><span class="flow-arrow"><--SSE: "Session ended"-----</span><span class="flow-component">Mercure</span><span class="flow-arrow"><-----------publish--</span><span class="flow-arrow">|</span></div>
+        <div class="flow-diagram">Browser                  Web Container            Worker
+  |                            |                          |
+  |--POST /ai-session/start--&gt;| Create AiSession entity  |
+  |&lt;--sessionId, topic--------|                          |
+  |                            |                          |
+  |--EventSource subscribe---&gt;|        Mercure           |
+  |                            |          ^               |
+  |--POST /ai-session/dispatch&gt;|          |               |
+  |                  publish--+--"Queuing"-+               |
+  |&lt;--SSE: "Queuing session"--|                          |
+  |             bus.dispatch--+--PostgreSQL (Messenger)--&gt;|
+  |                            |           exec nohup--&gt;[RunAiSessionCommand]
+  |                            |                          | +-- pi.dev (PTY)
+  |                            |                          | +-- Revolt event loop
+  |                            |                          | +-- pg LISTEN
+  |&lt;--SSE: terminal output----Mercure&lt;---------publish--|
+  |                            |                          |
+  |--POST /input-------------&gt;|                          |
+  |              NOTIFY-------+--PostgreSQL--------------&gt;|--&gt;fwrite(PTY)
+  |                            |                          |
+  |--DELETE /ai-session------&gt;|                          |
+  |              NOTIFY \x04--+--PostgreSQL--------------&gt;|--&gt;proc_terminate
+  |&lt;--SSE: "Session ended"----Mercure&lt;---------publish--|</div>
     </section>
 
     <!-- ===== WHEN TO SCALE ===== -->
