@@ -148,7 +148,6 @@ final class RunAiSessionCommand extends Command
                 . ' --proc /proc'
                 . ' --tmpfs /tmp'
                 . ' --bind %s %s'
-                . ' --tmpfs /app/.pi'
                 . ' --bind %s /app/.pi'
                 . ' --unshare-pid'
                 . ' --die-with-parent'
