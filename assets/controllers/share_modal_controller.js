@@ -13,6 +13,13 @@ export default class extends Controller {
         }
     }
 
+    showError(message) {
+        const div = document.createElement('div')
+        div.className = 'alert alert-error'
+        div.textContent = message
+        this.messageTarget.replaceChildren(div)
+    }
+
     async submit(event) {
         event.preventDefault()
 
@@ -35,10 +42,10 @@ export default class extends Controller {
                 this.emailTarget.value = ''
                 setTimeout(() => window.location.reload(), 1000)
             } else {
-                this.messageTarget.innerHTML = `<div class="alert alert-error">${data.error}</div>`
+                this.showError(data.error || 'An error occurred')
             }
         } catch (err) {
-            this.messageTarget.innerHTML = `<div class="alert alert-error">Failed: ${err.message}</div>`
+            this.showError('Request failed')
         }
     }
 }

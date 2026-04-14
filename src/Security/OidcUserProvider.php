@@ -33,23 +33,23 @@ final class OidcUserProvider implements OidcUserProviderInterface
             return;
         }
 
-        // Try to match by email — link existing account to OIDC
         $email = $userData->getEmail();
         if ($email === '') {
             throw new OidcException('OIDC provider did not return an email address.');
         }
 
-        $user = $this->userRepository->findOneByEmail($email);
-
-        if ($user !== null) {
-            $user->setOidcSubject($userIdentifier);
-            $user->setDisplayName($userData->getFullName() ?: $userData->getDisplayName() ?: $user->getDisplayName());
-            $this->em->flush();
-
-            return;
+        // Only auto-create if no existing account has this email.
+        // We never auto-link OIDC to an existing password account — that
+        // would let anyone who controls an IdP claim any email and take over
+        // the account. Admins can link accounts manually via the back-office.
+        $existing = $this->userRepository->findOneByEmail($email);
+        if ($existing !== null) {
+            throw new OidcException(sprintf(
+                'An account with email "%s" already exists. Ask an administrator to link your OIDC identity.',
+                $email,
+            ));
         }
 
-        // Auto-create new user
         $user = new User();
         $user->setEmail($email);
         $user->setOidcSubject($userIdentifier);

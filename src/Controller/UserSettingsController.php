@@ -24,6 +24,10 @@ class UserSettingsController extends AbstractController
         $user = $this->getUser();
 
         if ($request->isMethod('POST')) {
+            if (!$this->isCsrfTokenValid('user_settings', $request->request->getString('_token'))) {
+                throw $this->createAccessDeniedException('Invalid CSRF token.');
+            }
+
             $apiKey = $request->request->getString('ai_api_key');
             $provider = $request->request->getString('ai_provider');
 

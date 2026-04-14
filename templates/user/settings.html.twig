@@ -10,6 +10,7 @@
         <p class="text-muted mb-1">Configure your AI provider and API key for interactive sessions. Your key is stored encrypted.</p>
 
         <form method="post">
+            <input type="hidden" name="_token" value="{{ csrf_token('user_settings') }}">
             <div class="form-group">
                 <label for="ai_provider">Provider</label>
                 <select id="ai_provider" name="ai_provider">
