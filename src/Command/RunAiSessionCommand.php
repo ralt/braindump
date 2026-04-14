@@ -168,6 +168,13 @@ final class RunAiSessionCommand extends Command
 
         $callbackIds = [];
 
+        // Kill the session after 1 hour
+        $callbackIds[] = EventLoop::delay(3600, function () use ($process, $topic, &$callbackIds) {
+            $this->publishOutput($topic, "\r\nSession timed out after 1 hour.\r\n");
+            proc_terminate($process);
+            $this->cancelAll($callbackIds);
+        });
+
         $callbackIds[] = EventLoop::onReadable($ptyMaster, function (string $id, $stream) use ($topic, &$callbackIds) {
             $data = @fread($stream, 4096);
             if ($data !== false && $data !== '') {
