@@ -290,12 +290,15 @@ final class AiSessionHandler implements LoggerAwareInterface
 
     private function publishOutput(string $topic, string $data): void
     {
-        // DEBUG: manual JWT (no exp, no subscribe) to match the working curl test
+        // DEBUG: manual JWT with verbose curl to diagnose handler context issue
         $secret = getenv('MERCURE_JWT_SECRET');
         $url = $this->hub->getUrl();
         $h = rtrim(strtr(base64_encode('{"typ":"JWT","alg":"HS256"}'), '+/', '-_'), '=');
         $p = rtrim(strtr(base64_encode('{"mercure":{"publish":["*"]}}'), '+/', '-_'), '=');
         $sig = rtrim(strtr(base64_encode(hash_hmac('sha256', "$h.$p", $secret, true)), '+/', '-_'), '=');
+
+        $debugFile = fopen('/tmp/curl-mercure-debug.log', 'a');
+        fwrite($debugFile, "\n--- " . date('H:i:s') . " ---\n");
 
         $ch = curl_init($url);
         curl_setopt_array($ch, [
@@ -303,9 +306,15 @@ final class AiSessionHandler implements LoggerAwareInterface
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HTTPHEADER => ["Authorization: Bearer $h.$p.$sig", 'Content-Type: application/x-www-form-urlencoded'],
             CURLOPT_POSTFIELDS => 'topic=' . urlencode($topic) . '&data=' . urlencode(json_encode(['output' => $data])),
+            CURLOPT_VERBOSE => true,
+            CURLOPT_STDERR => $debugFile,
         ]);
-        curl_exec($ch);
+        $r = curl_exec($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $ip = curl_getinfo($ch, CURLINFO_PRIMARY_IP);
+        fwrite($debugFile, "HTTP=$code IP=$ip body=$r\n");
         curl_close($ch);
+        fclose($debugFile);
     }
 
     private function log(string $message, array $context = []): void
