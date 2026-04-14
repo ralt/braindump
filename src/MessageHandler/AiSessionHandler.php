@@ -55,7 +55,7 @@ final class AiSessionHandler implements LoggerAwareInterface
 
         // DEBUG: log Hub URL and JWT to diagnose Mercure publish issue
         error_log('[AiSession] Hub URL=' . $this->hub->getUrl());
-        error_log('[AiSession] Hub JWT=' . substr($this->hub->getProvider()->getJwt(), 0, 50) . '...');
+        error_log('[AiSession] Hub JWT=' . $this->hub->getProvider()->getJwt());
         error_log('[AiSession] MERCURE_URL env=' . (getenv('MERCURE_URL') ?: 'NOT SET'));
         error_log('[AiSession] MERCURE_JWT_SECRET env=' . (getenv('MERCURE_JWT_SECRET') ?: 'NOT SET'));
 
