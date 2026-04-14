@@ -372,7 +372,7 @@
             </div>
             <div class="feature">
                 <h3>Enterprise-Ready Auth</h3>
-                <p>Built-in form login with per-user roles and permissions. OIDC support for enterprise SSO coming soon &mdash; connect to your existing identity provider.</p>
+                <p>Built-in form login plus OpenID Connect (OIDC) single sign-on. Connect Okta, Azure AD, Google Workspace, Keycloak, or any OIDC provider. Set <code>OIDC_ENABLED=1</code> and three env vars to activate.</p>
             </div>
             <div class="feature">
                 <h3>Admin Back-Office</h3>
@@ -445,7 +445,7 @@
             <div class="setup-step">
                 <h3>Configure</h3>
                 <p>Copy <code>.env</code> to <code>.env.local</code> and set:</p>
-                <div class="code-block"><span class="comment"># Database</span><br>DATABASE_URL="postgresql://user:pass@127.0.0.1:5432/braindump"<br><br><span class="comment"># OpenAI Whisper</span><br>OPENAI_WHISPER_API_KEY=sk-...<br><br><span class="comment"># Mercure (run the Mercure binary separately)</span><br>MERCURE_URL=http://localhost:3000/.well-known/mercure</div>
+                <div class="code-block"><span class="comment"># Database</span><br>DATABASE_URL="postgresql://user:pass@127.0.0.1:5432/braindump"<br><br><span class="comment"># OpenAI Whisper</span><br>OPENAI_WHISPER_API_KEY=sk-...<br><br><span class="comment"># Mercure (run the Mercure binary separately)</span><br>MERCURE_URL=http://localhost:3000/.well-known/mercure<br><br><span class="comment"># OIDC (optional &mdash; set OIDC_ENABLED=1 to activate)</span><br>OIDC_ENABLED=0<br>OIDC_WELL_KNOWN_URL=https://your-idp.example.com/.well-known/openid-configuration<br>OIDC_CLIENT_ID=your-client-id<br>OIDC_CLIENT_SECRET=your-client-secret</div>
             </div>
             <div class="setup-step">
                 <h3>Database &amp; First User</h3>

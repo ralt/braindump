@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use Drenso\OidcBundle\OidcClientInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -19,7 +20,18 @@ class SecurityController extends AbstractController
         return $this->render('security/login.html.twig', [
             'last_username' => $authenticationUtils->getLastUsername(),
             'error' => $authenticationUtils->getLastAuthenticationError(),
+            'oidc_enabled' => $this->getParameter('app.oidc_enabled'),
         ]);
+    }
+
+    #[Route('/login/oidc', name: 'app_login_oidc')]
+    public function loginOidc(OidcClientInterface $oidcClient): Response
+    {
+        if (!$this->getParameter('app.oidc_enabled')) {
+            throw $this->createNotFoundException();
+        }
+
+        return $oidcClient->generateAuthorizationRedirect();
     }
 
     #[Route('/logout', name: 'app_logout')]

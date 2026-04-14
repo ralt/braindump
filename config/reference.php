@@ -1109,6 +1109,29 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *             cache_pool?: string|Param, // The cache pool to use for storing the limiter state // Default: "cache.rate_limiter"
  *             storage_service?: string|Param, // The service ID of a custom storage implementation, this precedes any configured "cache_pool" // Default: null
  *         },
+ *         oidc?: array{
+ *             provider?: scalar|Param|null,
+ *             remember_me?: bool|Param, // Default: true
+ *             success_handler?: scalar|Param|null,
+ *             failure_handler?: scalar|Param|null,
+ *             check_path?: scalar|Param|null, // Default: "/login_check"
+ *             login_path?: scalar|Param|null, // Default: "/login"
+ *             client?: scalar|Param|null, // Default: "default"
+ *             user_identifier_property?: scalar|Param|null, // Default: "sub"
+ *             user_identifier_from_idtoken?: bool|Param, // Default: false
+ *             enable_remember_me?: bool|Param, // Default: false
+ *             enable_end_session_listener?: bool|Param, // Default: false
+ *             use_logout_target_path?: bool|Param, // Default: true
+ *             enable_retrieve_user_info?: bool|Param, // Default: true
+ *             user_info_from_idtoken?: bool|Param, // Default: false
+ *             always_use_default_target_path?: bool|Param, // Default: false
+ *             default_target_path?: scalar|Param|null, // Default: "/"
+ *             target_path_parameter?: scalar|Param|null, // Default: "_target_path"
+ *             use_referer?: bool|Param, // Default: false
+ *             failure_path?: scalar|Param|null, // Default: null
+ *             failure_forward?: bool|Param, // Default: false
+ *             failure_path_parameter?: scalar|Param|null, // Default: "_failure_path"
+ *         },
  *         x509?: array{
  *             provider?: scalar|Param|null,
  *             user?: scalar|Param|null, // Default: "SSL_CLIENT_S_DN_Email"
@@ -1955,6 +1978,25 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *     default_cookie_lifetime?: int|Param, // Default lifetime of the cookie containing the JWT, in seconds. Defaults to the value of "framework.session.cookie_lifetime". // Default: null
  *     enable_profiler?: bool|Param, // Deprecated: The child node "enable_profiler" at path "mercure.enable_profiler" is deprecated. // Enable Symfony Web Profiler integration.
  * }
+ * @psalm-type DrensoOidcConfig = array{
+ *     default_client?: scalar|Param|null, // The default client to use // Default: "default"
+ *     clients?: array<string, array{ // Default: []
+ *         well_known_url?: scalar|Param|null,
+ *         well_known_parser?: scalar|Param|null, // Default: null
+ *         additional_token_constraints_provider?: scalar|Param|null, // Default: null
+ *         well_known_cache_time?: scalar|Param|null, // Default: 3600
+ *         jwks_cache_time?: scalar|Param|null, // Default: 3600
+ *         token_leeway_seconds?: scalar|Param|null, // Default: 300
+ *         client_id?: scalar|Param|null,
+ *         client_secret?: scalar|Param|null,
+ *         redirect_route?: scalar|Param|null, // Default: "/login_check"
+ *         custom_client_headers?: list<scalar|Param|null>,
+ *         custom_client_options?: list<scalar|Param|null>,
+ *         remember_me_parameter?: scalar|Param|null, // Default: "_remember_me"
+ *         code_challenge_method?: scalar|Param|null, // Default: null
+ *         disable_nonce?: bool|Param, // Default: false
+ *     }>,
+ * }
  * @psalm-type ConfigType = array{
  *     imports?: ImportsConfig,
  *     parameters?: ParametersConfig,
@@ -1971,6 +2013,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *     twig_component?: TwigComponentConfig,
  *     ai?: AiConfig,
  *     mercure?: MercureConfig,
+ *     drenso_oidc?: DrensoOidcConfig,
  *     "when@dev"?: array{
  *         imports?: ImportsConfig,
  *         parameters?: ParametersConfig,
@@ -1990,6 +2033,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         twig_component?: TwigComponentConfig,
  *         ai?: AiConfig,
  *         mercure?: MercureConfig,
+ *         drenso_oidc?: DrensoOidcConfig,
  *     },
  *     "when@prod"?: array{
  *         imports?: ImportsConfig,
@@ -2007,6 +2051,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         twig_component?: TwigComponentConfig,
  *         ai?: AiConfig,
  *         mercure?: MercureConfig,
+ *         drenso_oidc?: DrensoOidcConfig,
  *     },
  *     "when@test"?: array{
  *         imports?: ImportsConfig,
@@ -2025,6 +2070,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         twig_component?: TwigComponentConfig,
  *         ai?: AiConfig,
  *         mercure?: MercureConfig,
+ *         drenso_oidc?: DrensoOidcConfig,
  *     },
  *     ...<string, ExtensionType|array{ // extra keys must follow the when@%env% pattern or match an extension alias
  *         imports?: ImportsConfig,

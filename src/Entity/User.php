@@ -40,6 +40,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(length: 50, nullable: true)]
     private ?string $aiProvider = null;
 
+    #[ORM\Column(length: 255, nullable: true, unique: true)]
+    private ?string $oidcSubject = null;
+
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
@@ -136,6 +139,17 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function setAiProvider(?string $aiProvider): static
     {
         $this->aiProvider = $aiProvider;
+        return $this;
+    }
+
+    public function getOidcSubject(): ?string
+    {
+        return $this->oidcSubject;
+    }
+
+    public function setOidcSubject(?string $oidcSubject): static
+    {
+        $this->oidcSubject = $oidcSubject;
         return $this;
     }
 

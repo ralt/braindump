@@ -14,6 +14,13 @@
                 <div class="alert alert-error">{{ error.messageKey|trans(error.messageData, 'security') }}</div>
             {% endif %}
 
+            {% if oidc_enabled %}
+                <a href="{{ path('app_login_oidc') }}" class="btn btn-primary w-full justify-center">Sign in with SSO</a>
+                <div class="login-divider">
+                    <span>or</span>
+                </div>
+            {% endif %}
+
             <form method="post">
                 <div class="form-group">
                     <label for="inputEmail">Email</label>
