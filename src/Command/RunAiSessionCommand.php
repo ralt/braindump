@@ -104,14 +104,15 @@ final class RunAiSessionCommand extends Command
             return Command::FAILURE;
         }
 
-        $piAgentDir = $tmpDir . '/pi-agent';
+        // Per-user persistent directory for agent state across sessions
+        $userDir = '/.pi/' . $user->getId();
+        if (!is_dir($userDir)) {
+            mkdir($userDir, 0755, true);
+        }
+        $piAgentDir = $userDir . '/agent';
         if (!is_dir($piAgentDir)) {
             mkdir($piAgentDir, 0755, true);
         }
-
-        putenv($envVar . '=' . $apiKey);
-        putenv('TMPDIR=' . $tmpDir);
-        putenv('PI_CODING_AGENT_DIR=' . $piAgentDir);
 
         $descriptors = [
             0 => ['pty'],
@@ -119,29 +120,71 @@ final class RunAiSessionCommand extends Command
             2 => ['pipe', 'w'],
         ];
 
-        $initialPrompt = sprintf(
-            'Read the transcription in %s and summarize what it contains, then wait for my instructions.',
-            $transcriptionPath
-        );
-
         $sessionDir = $tmpDir . '/sessions';
         if (!is_dir($sessionDir)) {
             mkdir($sessionDir, 0755, true);
         }
 
-        $cmd = sprintf(
-            '%s --verbose --session-dir %s %s',
-            escapeshellarg($piBin),
-            escapeshellarg($sessionDir),
-            escapeshellarg($initialPrompt)
-        );
+        $bwrapBin = trim(shell_exec('which bwrap 2>/dev/null') ?? '');
+
+        if ($bwrapBin !== '') {
+            // Sandboxed: pi sees /session (its working dir) and /user (persistent)
+            // Everything else is read-only; other users' data and sessions are hidden
+            $initialPrompt = sprintf(
+                'Read the transcription in %s and summarize what it contains, then wait for my instructions.',
+                '/session/transcription.md'
+            );
+
+            $cmd = sprintf(
+                '%s'
+                . ' --ro-bind / /'
+                . ' --dev /dev'
+                . ' --proc /proc'
+                . ' --tmpfs /tmp'
+                . ' --tmpfs /.pi'
+                . ' --bind %s /session'
+                . ' --bind %s /user'
+                . ' --chdir /session'
+                . ' --setenv HOME /user'
+                . ' --setenv TMPDIR /session'
+                . ' --setenv PI_CODING_AGENT_DIR /user/agent'
+                . ' --setenv %s %s'
+                . ' --unshare-pid'
+                . ' --die-with-parent'
+                . ' -- %s --verbose --session-dir /session/sessions %s',
+                escapeshellarg($bwrapBin),
+                escapeshellarg($tmpDir),
+                escapeshellarg($userDir),
+                escapeshellarg($envVar),
+                escapeshellarg($apiKey),
+                escapeshellarg($piBin),
+                escapeshellarg($initialPrompt)
+            );
+        } else {
+            // Unsandboxed fallback (local dev)
+            $initialPrompt = sprintf(
+                'Read the transcription in %s and summarize what it contains, then wait for my instructions.',
+                $transcriptionPath
+            );
+
+            putenv($envVar . '=' . $apiKey);
+            putenv('TMPDIR=' . $tmpDir);
+            putenv('PI_CODING_AGENT_DIR=' . $piAgentDir);
+
+            $cmd = sprintf(
+                '%s --verbose --session-dir %s %s',
+                escapeshellarg($piBin),
+                escapeshellarg($sessionDir),
+                escapeshellarg($initialPrompt)
+            );
+        }
 
         $this->logger->info('[AiSession] Starting pi process', [
             'session' => (string) $session->getId(),
             'recording' => (string) $recording->getId(),
             'user' => $user->getEmail(),
             'provider' => $provider,
-            'cmd' => $cmd,
+            'sandboxed' => $bwrapBin !== '',
         ]);
 
         $this->publishOutput($topic, "Launching pi.dev session...\r\n");
@@ -251,10 +294,12 @@ final class RunAiSessionCommand extends Command
 
         EventLoop::run();
 
-        // Cleanup
-        putenv($envVar);
-        putenv('TMPDIR');
-        putenv('PI_CODING_AGENT_DIR');
+        // Cleanup env vars (only set in unsandboxed mode)
+        if ($bwrapBin === '') {
+            putenv($envVar);
+            putenv('TMPDIR');
+            putenv('PI_CODING_AGENT_DIR');
+        }
         @fclose($ptyMaster);
         @fclose($stderr);
         proc_close($process);

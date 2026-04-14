@@ -35,6 +35,8 @@ applications:
     hooks:
       build: |
         set -e
+        curl -fsSL -o ~/.global/bin/bwrap https://github.com/VHSgunzo/bubblewrap-static/releases/download/v0.11.0.2/bwrap-x86_64
+        chmod +x ~/.global/bin/bwrap
         curl -fs https://get.symfony.com/cloud/configurator | bash
         symfony-build
       deploy: symfony-deploy
