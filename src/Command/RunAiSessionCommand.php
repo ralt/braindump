@@ -1,0 +1,311 @@
+<?php
+
+namespace App\Command;
+
+use App\Entity\AiSession;
+use App\Entity\Recording;
+use App\Entity\User;
+use App\Enum\AiSessionStatus;
+use App\Service\ApiKeyEncryptorInterface;
+use Doctrine\ORM\EntityManagerInterface;
+use Psr\Log\LoggerInterface;
+use Revolt\EventLoop;
+use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Input\InputArgument;
+use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Mercure\HubInterface;
+use Symfony\Component\Mercure\Update;
+
+#[AsCommand(name: 'app:run-ai-session', description: 'Run a single AI session (launched by the messenger handler)')]
+final class RunAiSessionCommand extends Command
+{
+    private const PROVIDER_ENV_MAP = [
+        'anthropic' => 'ANTHROPIC_API_KEY',
+        'openai' => 'OPENAI_API_KEY',
+        'google' => 'GOOGLE_API_KEY',
+        'groq' => 'GROQ_API_KEY',
+        'mistral' => 'MISTRAL_API_KEY',
+        'deepseek' => 'DEEPSEEK_API_KEY',
+        'xai' => 'XAI_API_KEY',
+        'openrouter' => 'OPENROUTER_API_KEY',
+    ];
+
+    public function __construct(
+        private EntityManagerInterface $em,
+        private HubInterface $hub,
+        private ApiKeyEncryptorInterface $encryptor,
+        private LoggerInterface $logger,
+    ) {
+        parent::__construct();
+    }
+
+    protected function configure(): void
+    {
+        $this
+            ->addArgument('sessionId', InputArgument::REQUIRED)
+            ->addArgument('recordingId', InputArgument::REQUIRED)
+            ->addArgument('userId', InputArgument::REQUIRED);
+    }
+
+    protected function execute(InputInterface $input, OutputInterface $output): int
+    {
+        $session = $this->em->find(AiSession::class, $input->getArgument('sessionId'));
+        $recording = $this->em->find(Recording::class, $input->getArgument('recordingId'));
+        $user = $this->em->find(User::class, $input->getArgument('userId'));
+
+        if ($session === null || $recording === null || $user === null) {
+            $this->logger->error('[AiSession] Entity not found', [
+                'session' => $input->getArgument('sessionId'),
+                'recording' => $input->getArgument('recordingId'),
+                'user' => $input->getArgument('userId'),
+            ]);
+            return Command::FAILURE;
+        }
+
+        $topic = 'ai-session/' . $session->getId();
+
+        $tmpDir = sys_get_temp_dir() . '/ai-sessions/' . $session->getId();
+        if (!is_dir($tmpDir)) {
+            mkdir($tmpDir, 0755, true);
+        }
+
+        $transcriptionPath = $tmpDir . '/transcription.md';
+        file_put_contents($transcriptionPath, $recording->getTranscription() ?? '');
+
+        $fifoPath = $tmpDir . '/input.fifo';
+        if (!file_exists($fifoPath)) {
+            posix_mkfifo($fifoPath, 0600);
+        }
+
+        $provider = $user->getAiProvider() ?? 'anthropic';
+        $envVar = self::PROVIDER_ENV_MAP[$provider] ?? 'ANTHROPIC_API_KEY';
+        $apiKey = '';
+
+        if ($user->getEncryptedAiApiKey()) {
+            try {
+                $apiKey = $this->encryptor->decrypt($user->getEncryptedAiApiKey());
+            } catch (\Throwable) {
+                $this->publishOutput($topic, "\r\nError: Could not decrypt API key\r\n");
+                $session->setStatus(AiSessionStatus::Closed);
+                $session->setClosedAt(new \DateTimeImmutable());
+                $this->em->flush();
+                return Command::FAILURE;
+            }
+        }
+
+        $piBin = trim(shell_exec('which pi') ?? '');
+        if ($piBin === '') {
+            $this->publishOutput($topic, "\r\nError: pi binary not found in PATH\r\n");
+            $session->setStatus(AiSessionStatus::Closed);
+            $session->setClosedAt(new \DateTimeImmutable());
+            $this->em->flush();
+            return Command::FAILURE;
+        }
+
+        $piAgentDir = $tmpDir . '/pi-agent';
+        if (!is_dir($piAgentDir)) {
+            mkdir($piAgentDir, 0755, true);
+        }
+
+        putenv($envVar . '=' . $apiKey);
+        putenv('TMPDIR=' . $tmpDir);
+        putenv('PI_CODING_AGENT_DIR=' . $piAgentDir);
+
+        $descriptors = [
+            0 => ['pty'],
+            1 => ['pty'],
+            2 => ['pipe', 'w'],
+        ];
+
+        $initialPrompt = sprintf(
+            'Read the transcription in %s and summarize what it contains, then wait for my instructions.',
+            $transcriptionPath
+        );
+
+        $sessionDir = $tmpDir . '/sessions';
+        if (!is_dir($sessionDir)) {
+            mkdir($sessionDir, 0755, true);
+        }
+
+        $cmd = sprintf(
+            '%s --verbose --session-dir %s %s',
+            escapeshellarg($piBin),
+            escapeshellarg($sessionDir),
+            escapeshellarg($initialPrompt)
+        );
+
+        $this->logger->info('[AiSession] Starting pi process', [
+            'session' => (string) $session->getId(),
+            'recording' => (string) $recording->getId(),
+            'user' => $user->getEmail(),
+            'provider' => $provider,
+            'cmd' => $cmd,
+        ]);
+
+        $this->publishOutput($topic, "Launching pi.dev session...\r\n");
+
+        $process = proc_open($cmd, $descriptors, $pipes, $tmpDir);
+
+        if (!is_resource($process)) {
+            $this->publishOutput($topic, "\r\nError: Could not start pi process\r\n");
+            $session->setStatus(AiSessionStatus::Closed);
+            $session->setClosedAt(new \DateTimeImmutable());
+            $this->em->flush();
+            return Command::FAILURE;
+        }
+
+        $ptyMaster = $pipes[0];
+        $stderr = $pipes[2];
+        stream_set_blocking($ptyMaster, false);
+        stream_set_blocking($stderr, false);
+
+        $session->setStatus(AiSessionStatus::Running);
+        $this->em->flush();
+
+        $this->publishOutput($topic, "AI session started. Reading transcription...\r\n");
+
+        $callbackIds = [];
+
+        $callbackIds[] = EventLoop::onReadable($ptyMaster, function (string $id, $stream) use ($topic, &$callbackIds) {
+            $data = @fread($stream, 4096);
+            if ($data !== false && $data !== '') {
+                $this->publishOutput($topic, $data);
+            }
+            if ($data === false || feof($stream)) {
+                $this->cancelAll($callbackIds);
+            }
+        });
+
+        $callbackIds[] = EventLoop::onReadable($stderr, function (string $id, $stream) use ($topic) {
+            $data = @fread($stream, 4096);
+            if ($data !== false && $data !== '') {
+                $this->publishOutput($topic, $data);
+            }
+        });
+
+        $fifo = null;
+        $callbackIds[] = EventLoop::repeat(0.05, function (string $id) use (&$fifo, $fifoPath, $ptyMaster, $process, &$callbackIds) {
+            if ($fifo === null && file_exists($fifoPath)) {
+                $fifo = @fopen($fifoPath, 'r+');
+                if ($fifo) {
+                    stream_set_blocking($fifo, false);
+                }
+            }
+
+            if ($fifo === null) {
+                return;
+            }
+
+            $input = @fread($fifo, 4096);
+            if ($input !== false && $input !== '') {
+                if ($input === "\x04") {
+                    proc_terminate($process);
+                    $this->cancelAll($callbackIds);
+                    return;
+                }
+                @fwrite($ptyMaster, $input);
+            }
+
+            if (feof($fifo)) {
+                fclose($fifo);
+                $fifo = null;
+                if (file_exists($fifoPath)) {
+                    unlink($fifoPath);
+                }
+                posix_mkfifo($fifoPath, 0600);
+            }
+        });
+
+        $callbackIds[] = EventLoop::repeat(0.2, function (string $id) use ($process, $ptyMaster, $stderr, $topic, &$callbackIds) {
+            $status = proc_get_status($process);
+            if ($status['running']) {
+                return;
+            }
+
+            $remaining = @stream_get_contents($ptyMaster);
+            if ($remaining) {
+                $this->publishOutput($topic, $remaining);
+            }
+            $remaining = @stream_get_contents($stderr);
+            if ($remaining) {
+                $this->publishOutput($topic, $remaining);
+            }
+
+            $this->logger->info('[AiSession] pi process exited', [
+                'exitcode' => $status['exitcode'],
+                'signaled' => $status['signaled'],
+                'termsig' => $status['termsig'],
+            ]);
+
+            $this->cancelAll($callbackIds);
+        });
+
+        EventLoop::run();
+
+        // Cleanup
+        putenv($envVar);
+        putenv('TMPDIR');
+        putenv('PI_CODING_AGENT_DIR');
+        @fclose($ptyMaster);
+        @fclose($stderr);
+        proc_close($process);
+
+        if ($fifo) {
+            @fclose($fifo);
+        }
+
+        $this->cleanupDir($tmpDir);
+
+        $session->setStatus(AiSessionStatus::Closed);
+        $session->setClosedAt(new \DateTimeImmutable());
+        $this->em->flush();
+
+        $this->publishOutput($topic, "\r\nSession ended.\r\n");
+
+        return Command::SUCCESS;
+    }
+
+    /**
+     * @param list<string> $ids
+     */
+    private function cancelAll(array &$ids): void
+    {
+        foreach ($ids as $id) {
+            EventLoop::cancel($id);
+        }
+        $ids = [];
+    }
+
+    private function publishOutput(string $topic, string $data): void
+    {
+        try {
+            $this->hub->publish(new Update($topic, json_encode(['output' => $data])));
+        } catch (\Throwable $e) {
+            $this->logger->error('[AiSession] Mercure publish error: ' . $e->getMessage());
+        }
+    }
+
+    private function cleanupDir(string $dir): void
+    {
+        if (!is_dir($dir)) {
+            return;
+        }
+
+        $files = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST,
+        );
+
+        foreach ($files as $file) {
+            if ($file->isDir()) {
+                rmdir($file->getRealPath());
+            } else {
+                unlink($file->getRealPath());
+            }
+        }
+
+        rmdir($dir);
+    }
+}
