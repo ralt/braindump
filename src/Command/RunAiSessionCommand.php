@@ -136,11 +136,11 @@ final class RunAiSessionCommand extends Command
         putenv($envVar . '=' . $apiKey);
         putenv('TMPDIR=' . $tmpDir);
         putenv('PI_CODING_AGENT_DIR=' . $piAgentDir);
-        putenv('HOME=' . $userDir);
 
         if ($bwrapBin !== '') {
-            // Sandboxed: read-only filesystem, writable session + user dirs,
-            // /tmp hidden (isolates other sessions), PID namespace isolated
+            // Sandboxed: /app/.pi/{userId}/ → /app/.pi/ so pi sees ~/.pi/ as
+            // its own dir with no other users visible. /tmp hidden to isolate
+            // other sessions. Everything else read-only.
             $cmd = sprintf(
                 '%s'
                 . ' --ro-bind / /'
@@ -148,14 +148,14 @@ final class RunAiSessionCommand extends Command
                 . ' --proc /proc'
                 . ' --tmpfs /tmp'
                 . ' --bind %s %s'
-                . ' --bind %s %s'
+                . ' --tmpfs /app/.pi'
+                . ' --bind %s /app/.pi'
                 . ' --unshare-pid'
                 . ' --die-with-parent'
                 . ' -- %s --verbose --session-dir %s %s',
                 escapeshellarg($bwrapBin),
                 escapeshellarg($tmpDir),
                 escapeshellarg($tmpDir),
-                escapeshellarg($userDir),
                 escapeshellarg($userDir),
                 escapeshellarg($piBin),
                 escapeshellarg($sessionDir),
@@ -290,7 +290,6 @@ final class RunAiSessionCommand extends Command
         putenv($envVar);
         putenv('TMPDIR');
         putenv('PI_CODING_AGENT_DIR');
-        putenv('HOME');
         @fclose($ptyMaster);
         @fclose($stderr);
         proc_close($process);
