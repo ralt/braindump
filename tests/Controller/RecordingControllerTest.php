@@ -125,7 +125,7 @@ class RecordingControllerTest extends DatabaseTestCase
 
         // Load the show page to get the CSRF token from the retry form
         $crawler = $client->request('GET', '/recordings/' . $recordingId);
-        $csrfToken = $crawler->filter('form input[name="_token"]')->first()->attr('value');
+        $csrfToken = $crawler->filter('form[action*="retry"] input[name="_token"]')->first()->attr('value');
         $client->request('POST', '/api/recordings/' . $recordingId . '/retry', [
             '_token' => $csrfToken,
         ]);
@@ -152,7 +152,7 @@ class RecordingControllerTest extends DatabaseTestCase
 
         // Get CSRF token from the retry form on the show page
         $crawler = $client->request('GET', '/recordings/' . $recordingId);
-        $csrfToken = $crawler->filter('form input[name="_token"]')->first()->attr('value');
+        $csrfToken = $crawler->filter('form[action*="retry"] input[name="_token"]')->first()->attr('value');
 
         // Now change status to Completed before posting retry
         $freshEm = static::getContainer()->get(EntityManagerInterface::class);

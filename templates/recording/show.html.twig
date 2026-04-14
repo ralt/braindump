@@ -20,6 +20,13 @@
             {% if is_granted('RECORDING_SHARE', recording) %}
                 <button class="btn btn-secondary btn-sm" {{ stimulus_action('share-modal', 'open') }}>Share</button>
             {% endif %}
+
+            {% if is_granted('RECORDING_DELETE', recording) %}
+                <form method="post" action="{{ path('api_recording_delete', {id: recording.id}) }}" onsubmit="return confirm('Delete this recording? This cannot be undone.')">
+                    <input type="hidden" name="_token" value="{{ csrf_token('delete-recording') }}">
+                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                </form>
+            {% endif %}
         </div>
     </div>
 

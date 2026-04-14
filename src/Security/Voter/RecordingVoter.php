@@ -13,6 +13,7 @@ class RecordingVoter extends Voter
     public const VIEW = 'RECORDING_VIEW';
     public const EDIT = 'RECORDING_EDIT';
     public const SHARE = 'RECORDING_SHARE';
+    public const DELETE = 'RECORDING_DELETE';
     public const AI_SESSION = 'RECORDING_AI_SESSION';
 
     public function __construct(
@@ -22,7 +23,7 @@ class RecordingVoter extends Voter
     protected function supports(string $attribute, mixed $subject): bool
     {
         return $subject instanceof Recording
-            && \in_array($attribute, [self::VIEW, self::EDIT, self::SHARE, self::AI_SESSION], true);
+            && \in_array($attribute, [self::VIEW, self::EDIT, self::SHARE, self::DELETE, self::AI_SESSION], true);
     }
 
     protected function voteOnAttribute(string $attribute, mixed $subject, TokenInterface $token): bool
@@ -48,7 +49,7 @@ class RecordingVoter extends Voter
         return match ($attribute) {
             self::VIEW, self::AI_SESSION => true,
             self::EDIT => $share->getPermission()->value === 'edit',
-            self::SHARE => false, // only owner can share
+            self::SHARE, self::DELETE => false, // only owner can share/delete
             default => false,
         };
     }

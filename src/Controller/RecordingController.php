@@ -134,6 +134,31 @@ class RecordingController extends AbstractController
         return $this->redirectToRoute('app_recording_show', ['id' => $recording->getId()]);
     }
 
+    #[Route('/api/recordings/{id}/delete', name: 'api_recording_delete', methods: ['POST'])]
+    public function delete(Recording $recording, Request $request): Response
+    {
+        $this->denyAccessUnlessGranted('RECORDING_DELETE', $recording);
+
+        if (!$this->isCsrfTokenValid('delete-recording', $request->request->getString('_token'))) {
+            throw $this->createAccessDeniedException();
+        }
+
+        // Delete audio file
+        $audioPath = $this->audioStoragePath . '/' . $recording->getAudioFilePath();
+        if (file_exists($audioPath)) {
+            unlink($audioPath);
+        }
+
+        // Remove search index entry
+        $this->searchProvider->remove($recording);
+
+        $this->em->remove($recording);
+        $this->em->flush();
+
+        $this->addFlash('success', 'Recording deleted.');
+        return $this->redirectToRoute('app_recording_index');
+    }
+
     #[Route('/api/recordings/{id}/status', name: 'api_recording_status', methods: ['GET'])]
     public function status(Recording $recording): JsonResponse
     {
