@@ -179,14 +179,13 @@ final class RunAiSessionCommand extends Command
             );
         }
 
-        $this->logger->info('[AiSession] Starting pi process', [
-            'session' => (string) $session->getId(),
-            'recording' => (string) $recording->getId(),
-            'user' => $user->getEmail(),
-            'provider' => $provider,
-            'sandboxed' => $bwrapBin !== '',
-            'cmd' => $cmd,
-        ]);
+        error_log(sprintf(
+            '[AiSession] Starting pi process session=%s user=%s sandboxed=%s cmd=%s',
+            $session->getId(),
+            $user->getEmail(),
+            $bwrapBin !== '' ? 'yes' : 'no',
+            $cmd,
+        ));
 
         $this->publishOutput($topic, "Launching pi.dev session...\r\n");
 
@@ -284,19 +283,12 @@ final class RunAiSessionCommand extends Command
                 $this->publishOutput($topic, $remaining);
             }
 
-            $this->logger->info('[AiSession] pi process exited', [
-                'exitcode' => $status['exitcode'],
-                'signaled' => $status['signaled'],
-                'termsig' => $status['termsig'],
-            ]);
-
-            if ($status['exitcode'] !== 0) {
-                $this->publishOutput($topic, sprintf(
-                    "\r\nProcess exited with code %d%s\r\n",
-                    $status['exitcode'],
-                    $status['signaled'] ? ' (signal ' . $status['termsig'] . ')' : '',
-                ));
-            }
+            error_log(sprintf(
+                '[AiSession] pi process exited exitcode=%d signaled=%s termsig=%d',
+                $status['exitcode'],
+                $status['signaled'] ? 'true' : 'false',
+                $status['termsig'],
+            ));
 
             $this->cancelAll($callbackIds);
         });
