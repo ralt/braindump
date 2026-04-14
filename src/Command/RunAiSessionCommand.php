@@ -128,50 +128,41 @@ final class RunAiSessionCommand extends Command
 
         $bwrapBin = trim(shell_exec('which bwrap 2>/dev/null') ?? '');
 
-        if ($bwrapBin !== '') {
-            // Sandboxed: pi sees /session (its working dir) and /user (persistent)
-            // Everything else is read-only; other users' data and sessions are hidden
-            $initialPrompt = sprintf(
-                'Read the transcription in %s and summarize what it contains, then wait for my instructions.',
-                '/session/transcription.md'
-            );
+        $initialPrompt = sprintf(
+            'Read the transcription in %s and summarize what it contains, then wait for my instructions.',
+            $transcriptionPath
+        );
 
+        putenv($envVar . '=' . $apiKey);
+        putenv('TMPDIR=' . $tmpDir);
+        putenv('PI_CODING_AGENT_DIR=' . $piAgentDir);
+        putenv('HOME=' . $userDir);
+
+        if ($bwrapBin !== '') {
+            // Sandboxed: read-only filesystem, writable session + user dirs,
+            // /tmp hidden (isolates other sessions), PID namespace isolated
             $cmd = sprintf(
                 '%s'
                 . ' --ro-bind / /'
                 . ' --dev /dev'
                 . ' --proc /proc'
                 . ' --tmpfs /tmp'
-                . ' --tmpfs /app/.pi'
-                . ' --bind %s /session'
-                . ' --bind %s /user'
-                . ' --chdir /session'
-                . ' --setenv HOME /user'
-                . ' --setenv TMPDIR /session'
-                . ' --setenv PI_CODING_AGENT_DIR /user/agent'
-                . ' --setenv %s %s'
+                . ' --bind %s %s'
+                . ' --bind %s %s'
                 . ' --unshare-pid'
                 . ' --die-with-parent'
-                . ' -- %s --verbose --session-dir /session/sessions %s',
+                . ' -- %s --verbose --session-dir %s %s',
                 escapeshellarg($bwrapBin),
                 escapeshellarg($tmpDir),
+                escapeshellarg($tmpDir),
                 escapeshellarg($userDir),
-                escapeshellarg($envVar),
-                escapeshellarg($apiKey),
+                escapeshellarg($userDir),
                 escapeshellarg($piBin),
+                escapeshellarg($sessionDir),
                 escapeshellarg($initialPrompt)
             );
         } else {
             // Unsandboxed fallback (local dev)
-            $initialPrompt = sprintf(
-                'Read the transcription in %s and summarize what it contains, then wait for my instructions.',
-                $transcriptionPath
-            );
-
-            putenv($envVar . '=' . $apiKey);
-            putenv('TMPDIR=' . $tmpDir);
-            putenv('PI_CODING_AGENT_DIR=' . $piAgentDir);
-
             $cmd = sprintf(
                 '%s --verbose --session-dir %s %s',
                 escapeshellarg($piBin),
@@ -296,12 +287,10 @@ final class RunAiSessionCommand extends Command
 
         EventLoop::run();
 
-        // Cleanup env vars (only set in unsandboxed mode)
-        if ($bwrapBin === '') {
-            putenv($envVar);
-            putenv('TMPDIR');
-            putenv('PI_CODING_AGENT_DIR');
-        }
+        putenv($envVar);
+        putenv('TMPDIR');
+        putenv('PI_CODING_AGENT_DIR');
+        putenv('HOME');
         @fclose($ptyMaster);
         @fclose($stderr);
         proc_close($process);
