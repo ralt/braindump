@@ -32,6 +32,8 @@ class AiSession
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $closedAt = null;
 
+
+
     public function __construct()
     {
         $this->id = Uuid::v7();

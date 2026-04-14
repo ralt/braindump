@@ -162,6 +162,10 @@ class AiSessionController extends AbstractController
             throw $this->createAccessDeniedException();
         }
 
+        if ($session->getStatus() !== AiSessionStatus::Running) {
+            return $this->json(['error' => 'Session not ready'], Response::HTTP_SERVICE_UNAVAILABLE);
+        }
+
         $data = json_decode($request->getContent(), true);
         $input = $data['input'] ?? '';
 
@@ -169,20 +173,10 @@ class AiSessionController extends AbstractController
             return $this->json(['error' => 'No input provided'], Response::HTTP_BAD_REQUEST);
         }
 
-        // Write to the session's FIFO
-        $fifoPath = sys_get_temp_dir() . '/ai-sessions/' . $session->getId() . '/input.fifo';
-
-        if (!file_exists($fifoPath)) {
-            return $this->json(['error' => 'Session not ready'], Response::HTTP_SERVICE_UNAVAILABLE);
-        }
-
-        $fifo = fopen($fifoPath, 'w');
-        if ($fifo === false) {
-            return $this->json(['error' => 'Could not write to session'], Response::HTTP_INTERNAL_SERVER_ERROR);
-        }
-
-        fwrite($fifo, $input);
-        fclose($fifo);
+        $channel = 'ai_input_' . str_replace('-', '', (string) $session->getId());
+        $this->em->getConnection()->executeStatement(
+            sprintf('NOTIFY %s, %s', $channel, $this->em->getConnection()->quote($input))
+        );
 
         return $this->json(['ok' => true]);
     }
@@ -197,15 +191,9 @@ class AiSessionController extends AbstractController
             throw $this->createAccessDeniedException();
         }
 
-        // Signal the worker to stop by writing a sentinel value
-        $fifoPath = sys_get_temp_dir() . '/ai-sessions/' . $session->getId() . '/input.fifo';
-        if (file_exists($fifoPath)) {
-            $fifo = fopen($fifoPath, 'w');
-            if ($fifo) {
-                fwrite($fifo, "\x04"); // EOT character signals close
-                fclose($fifo);
-            }
-        }
+        $channel = 'ai_input_' . str_replace('-', '', (string) $session->getId());
+        $conn = $this->em->getConnection();
+        $conn->executeStatement(sprintf('NOTIFY %s, %s', $channel, $conn->quote("\x04")));
 
         $session->setStatus(AiSessionStatus::Closed);
         $session->setClosedAt(new \DateTimeImmutable());

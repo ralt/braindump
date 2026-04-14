@@ -74,11 +74,6 @@ final class RunAiSessionCommand extends Command
         $transcriptionPath = $tmpDir . '/transcription.md';
         file_put_contents($transcriptionPath, $recording->getTranscription() ?? '');
 
-        $fifoPath = $tmpDir . '/input.fifo';
-        if (!file_exists($fifoPath)) {
-            posix_mkfifo($fifoPath, 0600);
-        }
-
         $provider = $user->getAiProvider() ?? 'anthropic';
         $envVar = self::PROVIDER_ENV_MAP[$provider] ?? 'ANTHROPIC_API_KEY';
         $apiKey = '';
@@ -226,36 +221,32 @@ final class RunAiSessionCommand extends Command
             }
         });
 
-        $fifo = null;
-        $callbackIds[] = EventLoop::repeat(0.05, function (string $id) use (&$fifo, $fifoPath, $ptyMaster, $process, &$callbackIds) {
-            if ($fifo === null && file_exists($fifoPath)) {
-                $fifo = @fopen($fifoPath, 'r+');
-                if ($fifo) {
-                    stream_set_blocking($fifo, false);
-                }
-            }
+        // User input via PostgreSQL LISTEN/NOTIFY (works across containers)
+        $dbUrl = getenv('DATABASE_URL');
+        $parsed = parse_url($dbUrl);
+        $pgConn = pg_connect(sprintf(
+            'host=%s port=%d dbname=%s user=%s password=%s',
+            $parsed['host'],
+            $parsed['port'] ?? 5432,
+            ltrim($parsed['path'], '/'),
+            $parsed['user'],
+            $parsed['pass'] ?? '',
+        ));
+        $channel = 'ai_input_' . str_replace('-', '', (string) $session->getId());
+        pg_query($pgConn, 'LISTEN ' . $channel);
+        $pgSocket = pg_socket($pgConn);
+        stream_set_blocking($pgSocket, false);
 
-            if ($fifo === null) {
-                return;
-            }
-
-            $input = @fread($fifo, 4096);
-            if ($input !== false && $input !== '') {
+        $callbackIds[] = EventLoop::onReadable($pgSocket, function () use ($pgConn, $ptyMaster, $process, &$callbackIds) {
+            pg_consume_input($pgConn);
+            while (($notify = pg_get_notify($pgConn)) !== false) {
+                $input = $notify['payload'];
                 if ($input === "\x04") {
                     proc_terminate($process);
                     $this->cancelAll($callbackIds);
                     return;
                 }
                 @fwrite($ptyMaster, $input);
-            }
-
-            if (feof($fifo)) {
-                fclose($fifo);
-                $fifo = null;
-                if (file_exists($fifoPath)) {
-                    unlink($fifoPath);
-                }
-                posix_mkfifo($fifoPath, 0600);
             }
         });
 
@@ -292,10 +283,7 @@ final class RunAiSessionCommand extends Command
         @fclose($ptyMaster);
         @fclose($stderr);
         proc_close($process);
-
-        if ($fifo) {
-            @fclose($fifo);
-        }
+        pg_close($pgConn);
 
         $this->cleanupDir($tmpDir);
 
