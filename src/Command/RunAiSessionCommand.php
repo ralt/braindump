@@ -185,6 +185,7 @@ final class RunAiSessionCommand extends Command
             'user' => $user->getEmail(),
             'provider' => $provider,
             'sandboxed' => $bwrapBin !== '',
+            'cmd' => $cmd,
         ]);
 
         $this->publishOutput($topic, "Launching pi.dev session...\r\n");
@@ -288,6 +289,14 @@ final class RunAiSessionCommand extends Command
                 'signaled' => $status['signaled'],
                 'termsig' => $status['termsig'],
             ]);
+
+            if ($status['exitcode'] !== 0) {
+                $this->publishOutput($topic, sprintf(
+                    "\r\nProcess exited with code %d%s\r\n",
+                    $status['exitcode'],
+                    $status['signaled'] ? ' (signal ' . $status['termsig'] . ')' : '',
+                ));
+            }
 
             $this->cancelAll($callbackIds);
         });
