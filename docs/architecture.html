@@ -412,45 +412,59 @@
 
         <h3 style="margin-bottom: 0.5rem;">Transcription Flow</h3>
         <p>From browser audio recording to searchable text.</p>
-        <div class="flow-diagram">Browser                  Web Container            Worker                  OpenAI
-  |                            |                          |                        |
-  |--POST /recordings/new----&gt;|                          |                        |
-  |               save audio--&gt;Network Storage            |                        |
-  |               dispatch----&gt;PostgreSQL (Messenger)     |                        |
-  |&lt;--redirect----------------|                          |                        |
-  |                            |         LISTEN/NOTIFY--&gt;|                        |
-  |&lt;--SSE: "transcribing"------Mercure&lt;-------publish--|                        |
-  |                            |                  read audio--&gt;Network Storage    |
-  |                            |                          |--Whisper API--------&gt;|
-  |                            |                          |&lt;--transcription text--|
-  |                            |                  save text--&gt;PostgreSQL          |
-  |&lt;--SSE: "completed"--------Mercure&lt;-------publish--|                        |</div>
+        <div class="flow-diagram">Browser                    Web Container              Worker                   OpenAI
+   |                           |                          |                        |
+   |  POST /recordings/new     |                          |                        |
+   |--------------------------&gt;|                          |                        |
+   |              save audio--&gt;| Network Storage          |                        |
+   |                dispatch--&gt;| PostgreSQL (Messenger)   |                        |
+   |         redirect          |                          |                        |
+   |&lt;--------------------------|                          |                        |
+   |                           |      LISTEN/NOTIFY       |                        |
+   |                           |-------------------------&gt;|                        |
+   |      SSE: "transcribing"  |        publish           |                        |
+   |&lt;------------- Mercure ----|&lt;-------------------------|                        |
+   |                           |               read audio-|-&gt; Network Storage      |
+   |                           |                          |  Whisper API           |
+   |                           |                          |-----------------------&gt;|
+   |                           |                          |  transcription text    |
+   |                           |                          |&lt;-----------------------|
+   |                           |              save text--&gt;| PostgreSQL             |
+   |        SSE: "completed"   |        publish           |                        |
+   |&lt;------------- Mercure ----|&lt;-------------------------|                        |</div>
 
         <h3 style="margin-top: 2.5rem; margin-bottom: 0.5rem;">AI Session Flow</h3>
         <p>From starting a session to interactive terminal I/O.</p>
-        <div class="flow-diagram">Browser                  Web Container            Worker
-  |                            |                          |
-  |--POST /ai-session/start--&gt;| Create AiSession entity  |
-  |&lt;--sessionId, topic--------|                          |
-  |                            |                          |
-  |--EventSource subscribe---&gt;|        Mercure           |
-  |                            |          ^               |
-  |--POST /ai-session/dispatch&gt;|          |               |
-  |                  publish--+--"Queuing"-+               |
-  |&lt;--SSE: "Queuing session"--|                          |
-  |             bus.dispatch--+--PostgreSQL (Messenger)--&gt;|
-  |                            |           exec nohup--&gt;[RunAiSessionCommand]
-  |                            |                          | +-- pi.dev (PTY)
-  |                            |                          | +-- Revolt event loop
-  |                            |                          | +-- pg LISTEN
-  |&lt;--SSE: terminal output----Mercure&lt;---------publish--|
-  |                            |                          |
-  |--POST /input-------------&gt;|                          |
-  |              NOTIFY-------+--PostgreSQL--------------&gt;|--&gt;fwrite(PTY)
-  |                            |                          |
-  |--DELETE /ai-session------&gt;|                          |
-  |              NOTIFY \x04--+--PostgreSQL--------------&gt;|--&gt;proc_terminate
-  |&lt;--SSE: "Session ended"----Mercure&lt;---------publish--|</div>
+        <div class="flow-diagram">Browser                    Web Container              Worker
+   |                           |                          |
+   |  POST /ai-session/start   |                          |
+   |--------------------------&gt;| Create AiSession entity  |
+   |     sessionId, topic      |                          |
+   |&lt;--------------------------|                          |
+   |                           |                          |
+   |  EventSource subscribe    |       Mercure            |
+   |--------------------------&gt;|         ^                |
+   |  POST /ai-session/dispatch|         |                |
+   |--------------------------&gt;|--publish+                |
+   |  SSE: "Queuing session"   |                          |
+   |&lt;--------------------------|                          |
+   |           bus.dispatch---&gt;| PostgreSQL (Messenger)--&gt;|
+   |                           |          exec nohup-----&gt;| RunAiSessionCommand
+   |                           |                          |  +-- pi.dev (PTY)
+   |                           |                          |  +-- Revolt event loop
+   |                           |                          |  +-- pg LISTEN
+   |     SSE: terminal output  |        publish           |
+   |&lt;------------- Mercure ----|&lt;-------------------------|
+   |                           |                          |
+   |  POST /input              |                          |
+   |--------------------------&gt;|                          |
+   |              NOTIFY------&gt;| PostgreSQL--------------&gt;|--&gt; fwrite(PTY)
+   |                           |                          |
+   |  DELETE /ai-session       |                          |
+   |--------------------------&gt;|                          |
+   |           NOTIFY \x04----&gt;| PostgreSQL--------------&gt;|--&gt; proc_terminate
+   |     SSE: "Session ended"  |        publish           |
+   |&lt;------------- Mercure ----|&lt;-------------------------|</div>
     </section>
 
     <!-- ===== WHEN TO SCALE ===== -->
