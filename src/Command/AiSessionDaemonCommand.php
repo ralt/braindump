@@ -17,7 +17,6 @@ use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
-use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 #[AsCommand(name: 'app:ai-session-daemon', description: 'AI session daemon — manages all sessions concurrently via Mercure')]
 final class AiSessionDaemonCommand extends Command
@@ -41,10 +40,17 @@ final class AiSessionDaemonCommand extends Command
     private $sseStream = null;
 
     private string $publishJwt = '';
+    private string $publishHost = '';
+    private int $publishPort = 80;
+    private string $publishTransport = 'tcp';
+    private string $publishPath = '';
+
+    /** @var resource|null Persistent connection to Mercure for publishing */
+    private $publishStream = null;
+    private ?string $publishReadCbId = null;
 
     public function __construct(
         private EntityManagerInterface $em,
-        private HttpClientInterface $httpClient,
         private ApiKeyEncryptorInterface $encryptor,
         private LoggerInterface $logger,
         private string $mercureUrl,
@@ -64,6 +70,7 @@ final class AiSessionDaemonCommand extends Command
                 $this->cleanupSession($sessionId);
             }
             $this->closeSseConnection();
+            $this->closePublishConnection();
             EventLoop::getDriver()->stop();
         };
 
@@ -533,10 +540,16 @@ final class AiSessionDaemonCommand extends Command
     }
 
     /**
-     * Build the publish JWT once at startup.
+     * Build the publish JWT and parse the Mercure URL once at startup.
      */
     private function initPublisher(): void
     {
+        $parsed = parse_url($this->mercureUrl);
+        $this->publishHost = $parsed['host'] ?? 'localhost';
+        $this->publishPort = $parsed['port'] ?? (($parsed['scheme'] ?? 'http') === 'https' ? 443 : 80);
+        $this->publishPath = $parsed['path'] ?? '/.well-known/mercure';
+        $this->publishTransport = (($parsed['scheme'] ?? 'http') === 'https') ? 'ssl' : 'tcp';
+
         $config = Configuration::forSymmetricSigner(
             new Sha256(),
             InMemory::plainText($this->mercureJwtSecret)
@@ -548,10 +561,67 @@ final class AiSessionDaemonCommand extends Command
     }
 
     /**
-     * Non-blocking publish to Mercure via Symfony HttpClient.
-     * request() fires the POST immediately but doesn't block — the response
-     * is completed in the background by curl_multi. We never call getContent()
-     * so the event loop is never stalled.
+     * Get or create a persistent TCP connection to Mercure for publishing.
+     * Uses HTTP/1.1 keep-alive so all publishes share one connection.
+     *
+     * HACK: Raw socket because Symfony HttpClient (curl_multi) is never polled
+     * inside a Revolt event loop, so requests silently stall. See "Current
+     * Limitations" in docs/architecture.html. FrankenPHP will fix this.
+     *
+     * @return resource|null
+     */
+    private function getPublishConnection()
+    {
+        if ($this->publishStream !== null && \is_resource($this->publishStream) && !feof($this->publishStream)) {
+            return $this->publishStream;
+        }
+
+        // Clean up old connection
+        if ($this->publishReadCbId !== null) {
+            EventLoop::cancel($this->publishReadCbId);
+            $this->publishReadCbId = null;
+        }
+        if ($this->publishStream !== null && \is_resource($this->publishStream)) {
+            @fclose($this->publishStream);
+        }
+
+        $stream = @stream_socket_client(
+            $this->publishTransport . '://' . $this->publishHost . ':' . $this->publishPort,
+            $errno,
+            $errstr,
+            5
+        );
+
+        if ($stream === false) {
+            error_log(sprintf('[AiSessionDaemon] publish connect failed: %s', $errstr));
+            $this->publishStream = null;
+
+            return null;
+        }
+
+        stream_set_blocking($stream, false);
+        $this->publishStream = $stream;
+
+        // Drain responses in the background so the connection stays healthy
+        $this->publishReadCbId = EventLoop::onReadable($stream, function (string $cbId, $resource) {
+            $data = @fread($resource, 8192);
+            if ($data === false || ($data === '' && feof($resource))) {
+                // Connection dropped — will reconnect on next publish
+                EventLoop::cancel($cbId);
+                $this->publishReadCbId = null;
+                @fclose($resource);
+                $this->publishStream = null;
+                error_log('[AiSessionDaemon] publish connection lost, will reconnect');
+            }
+        });
+
+        error_log('[AiSessionDaemon] publish connection established');
+
+        return $stream;
+    }
+
+    /**
+     * Non-blocking fire-and-forget publish to Mercure over a persistent connection.
      */
     private function publishOutput(string $topic, string $data): void
     {
@@ -559,16 +629,41 @@ final class AiSessionDaemonCommand extends Command
             return;
         }
 
-        try {
-            $this->httpClient->request('POST', $this->mercureUrl, [
-                'auth_bearer' => $this->publishJwt,
-                'body' => [
-                    'topic' => $topic,
-                    'data' => json_encode(['output' => $data]),
-                ],
-            ]);
-        } catch (\Throwable $e) {
-            error_log(sprintf('[AiSessionDaemon] publish error for topic=%s: %s', $topic, $e->getMessage()));
+        $conn = $this->getPublishConnection();
+        if ($conn === null) {
+            return;
+        }
+
+        $body = http_build_query([
+            'topic' => $topic,
+            'data' => json_encode(['output' => $data]),
+        ]);
+
+        $request = sprintf(
+            "POST %s HTTP/1.1\r\nHost: %s\r\nAuthorization: Bearer %s\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: %d\r\n\r\n%s",
+            $this->publishPath,
+            $this->publishHost,
+            $this->publishJwt,
+            \strlen($body),
+            $body
+        );
+
+        $written = @fwrite($conn, $request);
+        if ($written === false) {
+            error_log('[AiSessionDaemon] publish write failed, closing connection');
+            $this->closePublishConnection();
+        }
+    }
+
+    private function closePublishConnection(): void
+    {
+        if ($this->publishReadCbId !== null) {
+            EventLoop::cancel($this->publishReadCbId);
+            $this->publishReadCbId = null;
+        }
+        if ($this->publishStream !== null && \is_resource($this->publishStream)) {
+            @fclose($this->publishStream);
+            $this->publishStream = null;
         }
     }
 
