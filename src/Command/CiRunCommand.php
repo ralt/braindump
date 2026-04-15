@@ -20,7 +20,6 @@ class CiRunCommand extends Command
     public function __construct(
         private LoggerInterface $logger,
         private string $upsunApiToken,
-        private string $upsunProjectId,
     ) {
         parent::__construct();
     }
@@ -29,8 +28,10 @@ class CiRunCommand extends Command
     {
         $io = new SymfonyStyle($input, $output);
 
-        if ($this->upsunApiToken === '' || $this->upsunProjectId === '') {
-            $io->error('UPSUN_API_TOKEN and UPSUN_PROJECT_ID must be set.');
+        $projectId = $_ENV['PLATFORM_PROJECT'] ?? '';
+
+        if ($this->upsunApiToken === '' || $projectId === '') {
+            $io->error('UPSUN_API_TOKEN and PLATFORM_PROJECT must be set.');
             return Command::FAILURE;
         }
 
@@ -46,9 +47,9 @@ class CiRunCommand extends Command
         $connector->setApiToken($this->upsunApiToken, 'exchange');
         $client = new PlatformClient($connector);
 
-        $project = $client->getProject($this->upsunProjectId);
+        $project = $client->getProject($projectId);
         if ($project === false) {
-            $io->error('Could not find Upsun project ' . $this->upsunProjectId);
+            $io->error('Could not find Upsun project ' . $projectId);
             return Command::FAILURE;
         }
 

@@ -49,7 +49,6 @@ services:
     App\Command\CiRunCommand:
         arguments:
             $upsunApiToken: '%env(UPSUN_API_TOKEN)%'
-            $upsunProjectId: '%env(UPSUN_PROJECT_ID)%'
 
 when@prod:
     services:
