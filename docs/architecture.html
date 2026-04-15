@@ -152,6 +152,7 @@
         :root[data-theme="dark"] .badge-optional { background: #451a03; color: #fcd34d; }
         :root[data-theme="dark"] .badge-unused { background: #1f2937; color: #9ca3af; }
 
+        .component.mt-design-note { margin-top: 1.5rem; }
         .component p { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem; }
         .component p:last-child { margin-bottom: 0; }
 
@@ -403,6 +404,15 @@
                 <p>Could replace the Doctrine transport for Symfony Messenger if message volume or delivery guarantees require it. Messenger supports AMQP out of the box.</p>
             </div>
 
+        </div>
+
+        <div class="component mt-design-note">
+            <div class="component-header">
+                <h3>Why both Mercure and PostgreSQL?</h3>
+            </div>
+            <p>Mercure (SSE) is <strong>fire-and-forget</strong>: if no subscriber is listening when an event is published, it's gone. This is fine for AI session IPC (keystrokes, start/close commands) because the user sees immediately if something didn't work and can retry.</p>
+            <p>Transcription jobs need <strong>durability</strong>: if the worker is restarting during a deploy when a recording is uploaded, the job must not be lost. Symfony Messenger with the Doctrine transport stores messages in a database table and delivers them when the worker comes back. It also provides automatic retry with backoff and a failure transport for dead-letter inspection.</p>
+            <p><strong>Rule of thumb:</strong> use Mercure for real-time IPC where loss is tolerable, Messenger for background jobs where reliability matters.</p>
         </div>
     </section>
 
