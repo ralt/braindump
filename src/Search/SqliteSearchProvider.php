@@ -25,70 +25,29 @@ class SqliteSearchProvider implements SearchProviderInterface
     {
         $this->ensureFtsTable();
         $conn = $this->em->getConnection();
-        $userId = $user->getId()->toBinary();
 
-        // FTS5 prefix search: "braindum" → "braindum*"
-        $ftsQuery = $this->buildFts5Query($query);
-
-        if ($ftsQuery !== '') {
-            $rows = $conn->fetchAllAssociative(
-                'SELECT f.recording_id FROM recording_fts f
-                 JOIN recording r ON r.id = f.recording_id
-                 LEFT JOIN recording_share s ON s.recording_id = r.id
-                 WHERE recording_fts MATCH :query
-                   AND (r.owner_id = :userId OR s.shared_with_id = :userId)
-                 ORDER BY rank',
-                [
-                    'query' => $ftsQuery,
-                    'userId' => $userId,
-                ]
-            );
-
-            if (!empty($rows)) {
-                return $this->hydrateResults(array_column($rows, 'recording_id'));
-            }
-        }
-
-        // Fallback: LIKE for typos and partial matches
         $rows = $conn->fetchAllAssociative(
-            'SELECT r.id FROM recording r
+            'SELECT f.recording_id FROM recording_fts f
+             JOIN recording r ON r.id = f.recording_id
              LEFT JOIN recording_share s ON s.recording_id = r.id
-             WHERE (r.title LIKE :pattern OR r.transcription LIKE :pattern)
+             WHERE recording_fts MATCH :query
                AND (r.owner_id = :userId OR s.shared_with_id = :userId)
-             ORDER BY r.created_at DESC',
+             ORDER BY rank',
             [
-                'pattern' => '%' . str_replace(['%', '_'], ['\%', '\_'], $query) . '%',
-                'userId' => $userId,
+                'query' => $query,
+                'userId' => $user->getId()->toBinary(),
             ]
         );
 
-        return $this->hydrateResults(array_column($rows, 'id'));
-    }
-
-    /**
-     * Build an FTS5 prefix query: "hello world" → "hello world*"
-     */
-    private function buildFts5Query(string $query): string
-    {
-        $trimmed = trim($query);
-        if ($trimmed === '') {
-            return '';
-        }
-
-        // Append * to the last word for prefix matching
-        return $trimmed . '*';
-    }
-
-    /** @return \App\Entity\Recording[] */
-    private function hydrateResults(array $ids): array
-    {
-        if (empty($ids)) {
+        if (empty($rows)) {
             return [];
         }
 
+        $ids = array_column($rows, 'recording_id');
+
         return $this->em->createQueryBuilder()
             ->select('r')
-            ->from(\App\Entity\Recording::class, 'r')
+            ->from(Recording::class, 'r')
             ->where('r.id IN (:ids)')
             ->setParameter('ids', $ids)
             ->orderBy('r.createdAt', 'DESC')
