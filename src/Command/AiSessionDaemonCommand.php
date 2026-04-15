@@ -17,6 +17,7 @@ use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 #[AsCommand(name: 'app:ai-session-daemon', description: 'AI session daemon — manages all sessions concurrently via Mercure')]
 final class AiSessionDaemonCommand extends Command
@@ -39,15 +40,11 @@ final class AiSessionDaemonCommand extends Command
     /** @var resource|null */
     private $sseStream = null;
 
-    /** Parsed Mercure URL components for async publishing */
-    private string $publishHost = '';
-    private int $publishPort = 80;
-    private string $publishTransport = 'tcp';
-    private string $publishPath = '';
     private string $publishJwt = '';
 
     public function __construct(
         private EntityManagerInterface $em,
+        private HttpClientInterface $httpClient,
         private ApiKeyEncryptorInterface $encryptor,
         private LoggerInterface $logger,
         private string $mercureUrl,
@@ -75,20 +72,6 @@ final class AiSessionDaemonCommand extends Command
             pcntl_signal(\SIGINT, $shutdown);
         }
 
-        // Periodic health check — logs daemon state every 60s
-        EventLoop::repeat(60.0, function () {
-            $sseAlive = $this->sseStream !== null && \is_resource($this->sseStream) && !feof($this->sseStream);
-            error_log(sprintf(
-                '[AiSessionDaemon] health: sessions=%d sse=%s',
-                \count($this->sessions),
-                $sseAlive ? 'connected' : 'DEAD',
-            ));
-            if (!$sseAlive && $this->sseCallbackId === null) {
-                error_log('[AiSessionDaemon] SSE connection dead, reconnecting...');
-                $this->connectToMercure();
-            }
-        });
-
         error_log('[AiSessionDaemon] Daemon started, entering event loop');
         EventLoop::run();
 
@@ -107,6 +90,15 @@ final class AiSessionDaemonCommand extends Command
         }
     }
 
+    /**
+     * Subscribe to Mercure SSE via raw TCP socket + manual HTTP.
+     *
+     * HACK: This manual socket handling exists because the daemon runs as a
+     * standalone CLI process (not inside FrankenPHP). PHP's fopen() HTTP
+     * wrapper buffers SSE internally and never yields events. Once we migrate
+     * to FrankenPHP worker mode, this entire method can be replaced with
+     * the native Mercure subscriber integration.
+     */
     private function connectToMercure(): void
     {
         // Clean up any existing connection first
@@ -541,17 +533,10 @@ final class AiSessionDaemonCommand extends Command
     }
 
     /**
-     * Prepare parsed URL + JWT for async publishing.
-     * Called once at startup so we don't regenerate JWTs on every publish.
+     * Build the publish JWT once at startup.
      */
     private function initPublisher(): void
     {
-        $parsed = parse_url($this->mercureUrl);
-        $this->publishHost = $parsed['host'] ?? 'localhost';
-        $this->publishPort = $parsed['port'] ?? (($parsed['scheme'] ?? 'http') === 'https' ? 443 : 80);
-        $this->publishPath = $parsed['path'] ?? '/.well-known/mercure';
-        $this->publishTransport = (($parsed['scheme'] ?? 'http') === 'https') ? 'ssl' : 'tcp';
-
         $config = Configuration::forSymmetricSigner(
             new Sha256(),
             InMemory::plainText($this->mercureJwtSecret)
@@ -563,9 +548,10 @@ final class AiSessionDaemonCommand extends Command
     }
 
     /**
-     * Non-blocking fire-and-forget publish to Mercure.
-     * Opens a TCP connection, writes the POST, reads + discards the response via the event loop.
-     * This NEVER blocks the Revolt event loop unlike $this->hub->publish().
+     * Non-blocking publish to Mercure via Symfony HttpClient.
+     * request() fires the POST immediately but doesn't block — the response
+     * is completed in the background by curl_multi. We never call getContent()
+     * so the event loop is never stalled.
      */
     private function publishOutput(string $topic, string $data): void
     {
@@ -573,64 +559,17 @@ final class AiSessionDaemonCommand extends Command
             return;
         }
 
-        $body = http_build_query([
-            'topic' => $topic,
-            'data' => json_encode(['output' => $data]),
-        ]);
-
-        $request = sprintf(
-            "POST %s HTTP/1.1\r\nHost: %s\r\nAuthorization: Bearer %s\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s",
-            $this->publishPath,
-            $this->publishHost,
-            $this->publishJwt,
-            \strlen($body),
-            $body
-        );
-
-        $stream = @stream_socket_client(
-            $this->publishTransport . '://' . $this->publishHost . ':' . $this->publishPort,
-            $errno,
-            $errstr,
-            5
-        );
-
-        if ($stream === false) {
-            error_log(sprintf('[AiSessionDaemon] publish: connect failed: %s', $errstr));
-
-            return;
+        try {
+            $this->httpClient->request('POST', $this->mercureUrl, [
+                'auth_bearer' => $this->publishJwt,
+                'body' => [
+                    'topic' => $topic,
+                    'data' => json_encode(['output' => $data]),
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            error_log(sprintf('[AiSessionDaemon] publish error for topic=%s: %s', $topic, $e->getMessage()));
         }
-
-        stream_set_blocking($stream, false);
-        @fwrite($stream, $request);
-
-        // Read response (log errors), then close — non-blocking via event loop
-        $responseBuf = '';
-        $readCbId = EventLoop::onReadable($stream, function (string $cbId, $resource) use (&$responseBuf, &$timeoutId, $topic) {
-            $data = @fread($resource, 8192);
-            if ($data !== false && $data !== '') {
-                $responseBuf .= $data;
-            }
-            if ($data === false || $data === '' || feof($resource)) {
-                EventLoop::cancel($cbId);
-                if (isset($timeoutId)) {
-                    EventLoop::cancel($timeoutId);
-                }
-                @fclose($resource);
-                // Check for non-2xx
-                if ($responseBuf !== '' && !preg_match('#^HTTP/\d\.\d 2\d\d#', $responseBuf)) {
-                    $statusLine = explode("\r\n", $responseBuf)[0] ?? '';
-                    error_log(sprintf('[AiSessionDaemon] publish error for topic=%s: %s', $topic, $statusLine));
-                }
-            }
-        });
-
-        // Safety: close connection after 10s if response never arrives
-        $timeoutId = EventLoop::delay(10.0, function () use ($readCbId, $stream) {
-            EventLoop::cancel($readCbId);
-            if (\is_resource($stream)) {
-                @fclose($stream);
-            }
-        });
     }
 
     private function ensureDbConnection(): void
