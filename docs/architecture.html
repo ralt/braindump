@@ -562,6 +562,81 @@
         </div>
     </section>
 
+    <!-- ===== AUTOMATED UPDATES ===== -->
+    <section class="section">
+        <h2>Automated Dependency Updates</h2>
+        <p>The site keeps itself updated via a weekly CI job that creates a branch, updates dependencies, runs the test suite, and decides what to do based on the results.</p>
+
+        <div class="component-grid">
+
+            <div class="component">
+                <div class="component-header">
+                    <h3>Weekly cron trigger</h3>
+                </div>
+                <p>An Upsun cron job runs <code>app:ci-run</code> every Monday at 3 AM. It uses the Upsun API to create a new environment branch from <code>main</code>, so the update process runs in an isolated copy of production.</p>
+            </div>
+
+            <div class="component">
+                <div class="component-header">
+                    <h3>Source operation: update dependencies</h3>
+                </div>
+                <p>The CI job triggers a source operation that runs <code>composer update</code> on the branch. This updates <code>composer.lock</code> and commits the changes. The source operation log captures which packages were updated and whether any have security advisories.</p>
+            </div>
+
+            <div class="component">
+                <div class="component-header">
+                    <h3>Deploy and test</h3>
+                </div>
+                <p>After the source operation, Upsun deploys the branch. The <code>post_deploy</code> hook runs PHPUnit. If the deploy or tests fail, the branch is left in place for investigation.</p>
+            </div>
+
+            <div class="component">
+                <div class="component-header">
+                    <h3>Security fixes: auto-merge</h3>
+                </div>
+                <p>If the source operation log mentions security vulnerability advisories, and the tests pass, the branch is automatically merged back into <code>main</code> and cleaned up. A notification email confirms what was merged.</p>
+            </div>
+
+            <div class="component">
+                <div class="component-header">
+                    <h3>Non-security updates: notify and wait</h3>
+                </div>
+                <p>If no security advisories were found, the branch is left open and a notification email is sent with a direct link to review and merge in the Upsun console. This avoids auto-merging routine updates that might need manual review.</p>
+            </div>
+
+            <div class="component">
+                <div class="component-header">
+                    <h3>AI-powered failure analysis</h3>
+                </div>
+                <p>When any step fails (branch creation, source operation, deploy, or tests), the activity log is sent to OpenAI for analysis. The AI identifies the likely root cause and suggests fixes. This analysis is included in the failure notification email, so the developer gets actionable context without having to dig through raw logs.</p>
+            </div>
+
+        </div>
+
+        <h3 style="margin-top: 2rem; margin-bottom: 0.5rem;">CI Run Flow</h3>
+        <div class="flow-diagram">Cron (Monday 3 AM)         Upsun API                  OpenAI
+   |                           |                          |
+   |  app:ci-run               |                          |
+   |-------------------------->| branch from main         |
+   |                           | source op: composer update|
+   |                           | deploy branch            |
+   |                           | (post_deploy: phpunit)   |
+   |                           |                          |
+   |  read activity logs       |                          |
+   |<--------------------------|                          |
+   |                           |                          |
+   |--- security advisory? ----|                          |
+   |        YES: merge + email |                          |
+   |         NO: email w/ link |                          |
+   |                           |                          |
+   |--- failure? --------------|                          |
+   |        send log           |                          |
+   |------------------------------------------>|          |
+   |        AI analysis        |                          |
+   |<------------------------------------------|          |
+   |        email w/ analysis  |                          |</div>
+    </section>
+
     <!-- ===== FRANKENPHP ===== -->
     <section class="section">
         <h2>FrankenPHP Migration Path</h2>

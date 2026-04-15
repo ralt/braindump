@@ -49,6 +49,8 @@ services:
     App\Command\CiRunCommand:
         arguments:
             $upsunApiToken: '%env(UPSUN_API_TOKEN)%'
+            $ciNotificationEmail: '%env(CI_NOTIFICATION_EMAIL)%'
+            $ciEmailDomain: '%env(CI_EMAIL_DOMAIN)%'
 
 when@prod:
     services:

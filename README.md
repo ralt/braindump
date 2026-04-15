@@ -123,7 +123,7 @@ php bin/phpunit
 | Variable | Description | Default |
 |---|---|---|
 | `DATABASE_URL` | PostgreSQL connection string | — |
-| `OPENAI_WHISPER_API_KEY` | OpenAI API key for Whisper transcription | — |
+| `OPENAI_WHISPER_API_KEY` | OpenAI API key for Whisper transcription and CI failure analysis | — |
 | `MERCURE_URL` | Mercure hub URL (server-side) | — |
 | `MERCURE_PUBLIC_URL` | Mercure hub URL (browser-side) | — |
 | `MERCURE_JWT_SECRET` | JWT secret for Mercure | — |
@@ -131,6 +131,10 @@ php bin/phpunit
 | `OPENSEARCH_URL` | OpenSearch/Elasticsearch URL | — |
 | `OPENSEARCH_INDEX` | OpenSearch index name | `braindump_recordings` |
 | `APP_SECRET` | Symfony app secret (used locally to encrypt API keys) | — |
+| `UPSUN_API_TOKEN` | Upsun API token for CI automation (`app:ci-run`) | — |
+| `CI_NOTIFICATION_EMAIL` | Recipient email for CI notifications | — |
+| `CI_EMAIL_DOMAIN` | Optional domain for FROM address (`noreply@{domain}`). Falls back to `CI_NOTIFICATION_EMAIL` | — |
+| `MAILER_DSN` | Mail transport (auto-set on Upsun from `PLATFORM_SMTP_HOST`) | `null://null` |
 
 ## Deployment on Upsun
 
@@ -139,7 +143,7 @@ The `.upsun/config.yaml` defines the full deployment:
 - **Web application**: PHP 8.4 with PHP-FPM
 - **Transcription worker**: Consumes the `async` Messenger transport — runs OpenAI Whisper transcription outside the HTTP request path
 - **AI session worker**: Consumes the `ai-session` Messenger transport — manages long-lived interactive AI sessions (via pi.dev) using `proc_open()`, streaming output through Mercure
-- **Weekly CI cron**: Runs `app:ci-run` — creates a throwaway Upsun environment, updates dependencies, runs `phpunit`, merges to main on success
+- **Weekly CI cron**: Runs `app:ci-run` — creates an Upsun environment, updates dependencies, runs `phpunit`. Auto-merges security fixes; sends an email with a merge link for non-security updates. On failure, sends the activity log to OpenAI for root-cause analysis and emails the results
 - **PostgreSQL 16**: Primary database
 - **Mercure**: Managed real-time hub
 - **Network storage**: Shared audio file storage

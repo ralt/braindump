@@ -59,8 +59,4 @@ php bin/phpunit
 
 ## Environment Variables
 
-- `DATABASE_URL` — PostgreSQL connection (auto-set on Upsun via `.environment`)
-- `OPENAI_WHISPER_API_KEY` — OpenAI API key for Whisper transcription
-- `MERCURE_URL` / `MERCURE_PUBLIC_URL` / `MERCURE_JWT_SECRET` — Mercure hub
-- `SEARCH_PROVIDER` — `postgres` (default) or `opensearch`
-- `APP_SECRET` — Used to derive encryption key for user API keys
+See the Environment Variables table in `README.md` for the full list.

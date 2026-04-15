@@ -8,3 +8,8 @@ if [ -n "${MERCURE_HOST:-}" ]; then
   # Public URL: same origin, path-based route — no CORS needed
   export MERCURE_PUBLIC_URL="/.well-known/mercure"
 fi
+
+# Upsun SMTP relay
+if [ -n "${PLATFORM_SMTP_HOST:-}" ]; then
+  export MAILER_DSN="smtp://${PLATFORM_SMTP_HOST}:25"
+fi

@@ -5,21 +5,31 @@ namespace App\Command;
 use Platformsh\Client\Connection\Connector;
 use Platformsh\Client\PlatformClient;
 use Psr\Log\LoggerInterface;
+use Symfony\AI\Platform\Message\MessageBag;
+use Symfony\AI\Platform\Message\SystemMessage;
+use Symfony\AI\Platform\Message\UserMessage;
+use Symfony\AI\Platform\PlatformInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\Mailer\MailerInterface;
+use Symfony\Component\Mime\Email;
 
 #[AsCommand(
     name: 'app:ci-run',
-    description: 'Run CI: branch from main, update deps, run tests, merge on success',
+    description: 'Run CI: branch from main, update deps, run tests, auto-merge security fixes or notify',
 )]
 class CiRunCommand extends Command
 {
     public function __construct(
         private LoggerInterface $logger,
+        private MailerInterface $mailer,
+        private PlatformInterface $platform,
         private string $upsunApiToken,
+        private string $ciNotificationEmail,
+        private string $ciEmailDomain,
     ) {
         parent::__construct();
     }
@@ -60,14 +70,18 @@ class CiRunCommand extends Command
                 return Command::FAILURE;
             }
 
+            // 1. Create branch
             $io->info('Creating branch...');
             $activity = $mainEnv->branch($branchName, $branchName);
             $activity->wait(null, null, 5);
             $activity->refresh();
             if (!\in_array($activity->result, ['success', 'warning'], true)) {
                 $io->error(sprintf('Branch creation failed (result: %s)', $activity->result));
-                $io->section('Activity log');
-                $io->text($activity->log);
+                $analysis = $this->analyzeFailure($activity->log);
+                $this->notify(
+                    'CI failed: branch creation',
+                    sprintf("Branch: %s\nResult: %s\n\nActivity log:\n%s%s", $branchName, $activity->result, $activity->log, $analysis !== '' ? "\n\nAI Analysis:\n" . $analysis : ''),
+                );
                 return Command::FAILURE;
             }
             $io->info('Branch created and deployed');
@@ -78,21 +92,30 @@ class CiRunCommand extends Command
                 return Command::FAILURE;
             }
 
+            // 2. Run source operation
             $io->info('Running source operation to update dependencies...');
             $opResult = $ciEnv->runSourceOperation('update-dependencies');
+            $sourceLog = '';
             foreach ($opResult->getActivities() as $sourceActivity) {
                 $sourceActivity->wait(null, null, 5);
                 $sourceActivity->refresh();
+                $sourceLog .= $sourceActivity->log;
                 if (!\in_array($sourceActivity->result, ['success', 'warning'], true)) {
                     $io->error(sprintf('Source operation failed (result: %s)', $sourceActivity->result));
-                    $io->section('Activity log');
-                    $io->text($sourceActivity->log);
+                    $analysis = $this->analyzeFailure($sourceActivity->log);
+                    $this->notify(
+                        'CI failed: source operation',
+                        sprintf("Branch: %s\nResult: %s\n\nActivity log:\n%s%s", $branchName, $sourceActivity->result, $sourceActivity->log, $analysis !== '' ? "\n\nAI Analysis:\n" . $analysis : ''),
+                    );
                     return Command::FAILURE;
                 }
             }
             $io->info('Source operation completed');
 
-            // Wait for the deploy activity (post_deploy runs phpunit)
+            $hasSecurityFix = str_contains($sourceLog, 'security vulnerability advisories found')
+                && !str_contains($sourceLog, 'No security vulnerability advisories found');
+
+            // 3. Wait for deploy (post_deploy runs phpunit)
             sleep(5);
             $ciEnv->refresh();
             $deployActivity = null;
@@ -103,47 +126,64 @@ class CiRunCommand extends Command
                 }
             }
 
-            if ($deployActivity !== null) {
-                $io->info('Waiting for deploy (tests run in post_deploy)...');
-                $deployActivity->wait(null, null, 5);
-                $deployActivity->refresh();
-
-                $result = $deployActivity->result;
-
-                if ($result === 'success' || $result === 'warning') {
-                    if ($result === 'warning') {
-                        $io->warning('Deploy completed with warnings:');
-                        $io->text($deployActivity->log);
-                    }
-
-                    $io->success('CI passed, merging to main');
-                    $ciEnv->refresh();
-                    $mergeActivity = $ciEnv->merge();
-                    $mergeActivity->wait(null, null, 5);
-
-                    $ciEnv->refresh();
-                    if ($ciEnv->isActive()) {
-                        $deactivateActivity = $ciEnv->deactivate();
-                        $deactivateActivity->wait(null, null, 5);
-                    }
-                    $ciEnv->refresh();
-                    $ciEnv->delete();
-                    $io->success('Merged and cleaned up');
-                    return Command::SUCCESS;
-                } else {
-                    $io->error(sprintf('CI failed (result: %s)', $result));
-                    $io->section('Activity log');
-                    $io->text($deployActivity->log);
-                    $this->logger->error('CI failed', ['branch' => $branchName, 'result' => $result]);
-                    return Command::FAILURE;
-                }
-            } else {
+            if ($deployActivity === null) {
                 $io->error('No deploy activity found after source operation');
                 return Command::FAILURE;
             }
+
+            $io->info('Waiting for deploy (tests run in post_deploy)...');
+            $deployActivity->wait(null, null, 5);
+            $deployActivity->refresh();
+
+            $result = $deployActivity->result;
+
+            if ($result !== 'success' && $result !== 'warning') {
+                $io->error(sprintf('CI failed (result: %s)', $result));
+                $analysis = $this->analyzeFailure($deployActivity->log);
+                $this->notify(
+                    'CI failed: tests',
+                    sprintf("Branch: %s\nResult: %s\n\nActivity log:\n%s%s", $branchName, $result, $deployActivity->log, $analysis !== '' ? "\n\nAI Analysis:\n" . $analysis : ''),
+                );
+                $this->logger->error('CI failed', ['branch' => $branchName, 'result' => $result]);
+                return Command::FAILURE;
+            }
+
+            if ($result === 'warning') {
+                $io->warning('Deploy completed with warnings');
+            }
+
+            // 4. Tests passed — decide: auto-merge or notify
+            if ($hasSecurityFix) {
+                $io->info('Security advisory found — auto-merging');
+                $this->mergeAndCleanup($ciEnv, $io);
+                $this->notify(
+                    'CI: security update auto-merged',
+                    sprintf("Branch %s contained a security fix and was automatically merged to main.\n\nSource operation log:\n%s", $branchName, $sourceLog),
+                );
+                return Command::SUCCESS;
+            }
+
+            // No security fix — leave branch, send link to merge
+            $mergeUrl = sprintf('https://console.upsun.com/projects/%s/environments/%s', $projectId, $branchName);
+            $io->info('No security advisory — sending notification with merge link');
+            $this->notify(
+                'CI passed: dependency update ready to merge',
+                sprintf(
+                    "Branch %s has updated dependencies and tests pass.\n\nNo security advisories were found, so it was not auto-merged.\n\nReview and merge: %s\n\nSource operation log:\n%s",
+                    $branchName,
+                    $mergeUrl,
+                    $sourceLog,
+                ),
+            );
+            $io->success('Notification sent');
+            return Command::SUCCESS;
         } catch (\Throwable $e) {
             $io->error('CI run failed: ' . $e->getMessage());
             $this->logger->error('CI run failed', ['branch' => $branchName, 'error' => $e->getMessage()]);
+            $this->notify(
+                'CI failed: unexpected error',
+                sprintf("Branch: %s\nError: %s", $branchName, $e->getMessage()),
+            );
 
             // Attempt cleanup
             try {
@@ -160,6 +200,58 @@ class CiRunCommand extends Command
             }
 
             return Command::FAILURE;
+        }
+    }
+
+    private function mergeAndCleanup(mixed $ciEnv, SymfonyStyle $io): void
+    {
+        $ciEnv->refresh();
+        $mergeActivity = $ciEnv->merge();
+        $mergeActivity->wait(null, null, 5);
+
+        $ciEnv->refresh();
+        if ($ciEnv->isActive()) {
+            $ciEnv->deactivate()->wait(null, null, 5);
+        }
+        $ciEnv->refresh();
+        $ciEnv->delete();
+        $io->success('Merged and cleaned up');
+    }
+
+    private function analyzeFailure(string $activityLog): string
+    {
+        try {
+            $log = mb_substr($activityLog, 0, 12000);
+
+            $messages = new MessageBag(
+                new SystemMessage('You are a DevOps assistant analyzing CI/CD activity logs from an Upsun (Platform.sh) deployment. Identify the root cause of the failure and suggest concrete fixes. Be concise — bullet points preferred.'),
+                new UserMessage("This CI activity failed. Analyze the log and suggest how to fix it:\n\n" . $log),
+            );
+
+            return $this->platform->invoke('gpt-4.1-mini', $messages)->asText();
+        } catch (\Throwable $e) {
+            $this->logger->warning('Failed to get AI analysis of CI failure', ['error' => $e->getMessage()]);
+            return '';
+        }
+    }
+
+    private function notify(string $subject, string $body): void
+    {
+        if ($this->ciNotificationEmail === '') {
+            return;
+        }
+
+        try {
+            $from = $this->ciEmailDomain !== '' ? 'noreply@' . $this->ciEmailDomain : $this->ciNotificationEmail;
+            $email = (new Email())
+                ->from($from)
+                ->to($this->ciNotificationEmail)
+                ->subject('[Braindump CI] ' . $subject)
+                ->text($body);
+
+            $this->mailer->send($email);
+        } catch (\Throwable $e) {
+            $this->logger->error('Failed to send CI notification email', ['error' => $e->getMessage()]);
         }
     }
 }
