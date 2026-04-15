@@ -14,7 +14,7 @@
             <span class="badge badge-{{ recording.status.value }}" {{ stimulus_target('recording-status', 'badge') }}>{{ recording.status.value }}</span>
 
             {% if is_granted('RECORDING_AI_SESSION', recording) %}
-                <a href="{{ path('app_ai_session', {id: recording.id}) }}" class="btn btn-primary btn-sm">Start AI Session</a>
+                <a href="{{ path('app_ai_session', {id: recording.id}) }}" class="btn btn-primary btn-sm{% if recording.status.value != 'completed' %} btn-disabled{% endif %}" {{ stimulus_target('recording-status', 'aiSessionButton') }}{% if recording.status.value != 'completed' %} aria-disabled="true"{% endif %}>Start AI Session</a>
             {% endif %}
 
             {% if is_granted('RECORDING_SHARE', recording) %}

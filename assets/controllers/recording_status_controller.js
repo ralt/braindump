@@ -1,7 +1,7 @@
 import { Controller } from '@hotwired/stimulus'
 
 export default class extends Controller {
-    static targets = ['badge', 'transcriptionArea']
+    static targets = ['badge', 'transcriptionArea', 'aiSessionButton']
     static values = {
         statusUrl: String,
         status: String,
@@ -31,6 +31,7 @@ export default class extends Controller {
 
                 if (data.status === 'completed' && data.transcription) {
                     this.showTranscription(data.transcription)
+                    this.enableAiSessionButton()
                     this.close()
                 } else if (data.status === 'failed') {
                     window.location.reload()
@@ -52,6 +53,13 @@ export default class extends Controller {
             '<h2 class="mb-1">Transcription</h2>' +
             '<div class="transcription-text">' + this.escapeHtml(text) + '</div>'
         this.transcriptionAreaTarget.className = 'card'
+    }
+
+    enableAiSessionButton() {
+        if (!this.hasAiSessionButtonTarget) return
+
+        this.aiSessionButtonTarget.classList.remove('btn-disabled')
+        this.aiSessionButtonTarget.removeAttribute('aria-disabled')
     }
 
     escapeHtml(text) {
