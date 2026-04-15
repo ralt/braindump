@@ -6,7 +6,6 @@ use App\Entity\AiSession;
 use App\Entity\Recording;
 use App\Entity\User;
 use App\Enum\AiSessionStatus;
-use App\Message\StartAiSessionMessage;
 use App\Service\ApiKeyEncryptorInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -14,7 +13,6 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Mercure\Authorization;
-use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Mercure\HubInterface;
 use Symfony\Component\Mercure\Update;
 use Symfony\Component\Routing\Attribute\Route;
@@ -23,7 +21,6 @@ class AiSessionController extends AbstractController
 {
     public function __construct(
         private EntityManagerInterface $em,
-        private MessageBusInterface $bus,
         private ApiKeyEncryptorInterface $encryptor,
         private Authorization $mercureAuthorization,
         private HubInterface $hub,
@@ -131,14 +128,19 @@ class AiSessionController extends AbstractController
             return $this->json(['error' => 'Session already dispatched'], Response::HTTP_CONFLICT);
         }
 
-        // Immediate feedback while the worker picks up the message
+        // Immediate feedback while the daemon picks up the message
         $topic = 'ai-session/' . $session->getId();
         $this->hub->publish(new Update($topic, json_encode(['output' => "Queuing session...\r\n"])));
 
-        $this->bus->dispatch(new StartAiSessionMessage(
-            $session->getId(),
-            $session->getRecording()->getId(),
-            $user->getId(),
+        $this->hub->publish(new Update(
+            'ai-session-daemon',
+            json_encode([
+                'type' => 'start',
+                'sessionId' => (string) $session->getId(),
+                'recordingId' => (string) $session->getRecording()->getId(),
+                'userId' => (string) $user->getId(),
+            ]),
+            true
         ));
 
         return $this->json(['ok' => true]);
@@ -173,10 +175,15 @@ class AiSessionController extends AbstractController
             return $this->json(['error' => 'No input provided'], Response::HTTP_BAD_REQUEST);
         }
 
-        $channel = 'ai_input_' . str_replace('-', '', (string) $session->getId());
-        $this->em->getConnection()->executeStatement(
-            sprintf('NOTIFY %s, %s', $channel, $this->em->getConnection()->quote($input))
-        );
+        $this->hub->publish(new Update(
+            'ai-session-daemon',
+            json_encode([
+                'type' => 'input',
+                'sessionId' => (string) $session->getId(),
+                'input' => $input,
+            ]),
+            true
+        ));
 
         return $this->json(['ok' => true]);
     }
@@ -191,9 +198,14 @@ class AiSessionController extends AbstractController
             throw $this->createAccessDeniedException();
         }
 
-        $channel = 'ai_input_' . str_replace('-', '', (string) $session->getId());
-        $conn = $this->em->getConnection();
-        $conn->executeStatement(sprintf('NOTIFY %s, %s', $channel, $conn->quote("\x04")));
+        $this->hub->publish(new Update(
+            'ai-session-daemon',
+            json_encode([
+                'type' => 'close',
+                'sessionId' => (string) $session->getId(),
+            ]),
+            true
+        ));
 
         $session->setStatus(AiSessionStatus::Closed);
         $session->setClosedAt(new \DateTimeImmutable());

@@ -11,13 +11,6 @@ framework:
                 retry_strategy:
                     max_retries: 3
                     multiplier: 2
-            ai-session:
-                dsn: '%env(MESSENGER_TRANSPORT_DSN)%?queue_name=ai-session'
-                options:
-                    use_notify: true
-                retry_strategy:
-                    max_retries: 1
-                    multiplier: 2
             failed: 'doctrine://default?queue_name=failed'
 
         default_bus: messenger.bus.default
@@ -30,4 +23,3 @@ framework:
             Symfony\Component\Notifier\Message\ChatMessage: async
             Symfony\Component\Notifier\Message\SmsMessage: async
             App\Message\TranscribeRecordingMessage: async
-            App\Message\StartAiSessionMessage: ai-session
