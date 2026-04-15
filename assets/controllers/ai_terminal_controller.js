@@ -94,10 +94,15 @@ export default class extends Controller {
                 this.terminal.writeln('\r\nWarning: Mercure connection slow, proceeding anyway...')
             })
 
-            await fetch(`/api/ai-sessions/${this.sessionId}/dispatch`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-            })
+            // Skip dispatch if the session is already running (e.g., page reload)
+            if (data.status === 'running') {
+                this.terminal.writeln('Reconnected to existing session.\r\n')
+            } else {
+                await fetch(`/api/ai-sessions/${this.sessionId}/dispatch`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                })
+            }
 
             this.statusTarget.textContent = 'Running'
 

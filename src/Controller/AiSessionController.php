@@ -81,6 +81,7 @@ class AiSessionController extends AbstractController
             return $this->json([
                 'sessionId' => $existing->getId(),
                 'mercureTopic' => 'ai-session/' . $existing->getId(),
+                'status' => $existing->getStatus()->value,
             ]);
         }
 
