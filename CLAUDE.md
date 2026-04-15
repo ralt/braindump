@@ -28,9 +28,9 @@ Never have subagents modify the main working directory directly.
 ## Key Architecture
 
 - **FrankenPHP** as the web runtime on Upsun (via `runtime/frankenphp-symfony`)
-- **Messenger transports:** `async` (transcription) via Doctrine/PostgreSQL LISTEN/NOTIFY
-- **Revolt event loop** in the AI session daemon for concurrent PTY I/O across all sessions
-- **Mercure SSE** for real-time updates (transcription status, AI session output) AND daemon IPC (session start/input/close); same-origin path routing (`/.well-known/mercure`)
+- **Messenger transports:** `async` (transcription) and `ai-session` (one worker process per session) via Doctrine/PostgreSQL LISTEN/NOTIFY
+- **One PHP process per AI session** — dispatched via Messenger, runs a `stream_select` loop with synchronous Mercure publishing. No Revolt event loop needed.
+- **Mercure SSE** for real-time updates (transcription status, AI session output) and per-session input/close commands; same-origin path routing (`/.well-known/mercure`)
 - **Per-user AI provider API key** stored encrypted via Vault KMS (prod) or plaintext (dev)
 - **Audio files** on Upsun network-storage (shared between web + worker containers)
 - **Upsun deploy:** `symfony-build` / `symfony-deploy` (installed via Symfony Cloud configurator)
@@ -47,8 +47,8 @@ symfony server:start
 # Workers (--sleep=60 avoids poll spam on SQLite; not needed on Upsun where LISTEN/NOTIFY is used)
 php bin/console messenger:consume async --time-limit=3600 --sleep=60
 
-# AI session daemon (manages all sessions concurrently)
-php bin/console app:ai-session-daemon
+# AI session worker (one process per session, dispatched via Messenger)
+php bin/console messenger:consume ai-session --time-limit=7200 --sleep=60
 
 # Create user
 php bin/console app:create-user <email> <password> <display-name> [--admin]

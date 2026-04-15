@@ -6,7 +6,7 @@ use App\Entity\AiSession;
 use App\Entity\Recording;
 use App\Entity\User;
 use App\Enum\AiSessionStatus;
-use App\Service\ApiKeyEncryptorInterface;
+use App\Message\StartAiSessionMessage;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -15,15 +15,16 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Mercure\Authorization;
 use Symfony\Component\Mercure\HubInterface;
 use Symfony\Component\Mercure\Update;
+use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Attribute\Route;
 
 class AiSessionController extends AbstractController
 {
     public function __construct(
         private EntityManagerInterface $em,
-        private ApiKeyEncryptorInterface $encryptor,
         private Authorization $mercureAuthorization,
         private HubInterface $hub,
+        private MessageBusInterface $bus,
     ) {}
 
     #[Route('/recordings/{id}/ai-session', name: 'app_ai_session')]
@@ -60,7 +61,6 @@ class AiSessionController extends AbstractController
         }
 
         // Prevent duplicate sessions — only consider sessions created in the last 5 minutes
-        // to avoid stale sessions from crashed workers blocking new ones forever
         $cutoff = new \DateTimeImmutable('-5 minutes');
         $existing = $this->em->createQueryBuilder()
             ->select('s')
@@ -129,19 +129,14 @@ class AiSessionController extends AbstractController
             return $this->json(['error' => 'Session already dispatched'], Response::HTTP_CONFLICT);
         }
 
-        // Immediate feedback while the daemon picks up the message
+        // Immediate feedback while the worker picks up the message
         $topic = 'ai-session/' . $session->getId();
         $this->hub->publish(new Update($topic, json_encode(['output' => "Queuing session...\r\n"])));
 
-        $this->hub->publish(new Update(
-            'ai-session-daemon',
-            json_encode([
-                'type' => 'start',
-                'sessionId' => (string) $session->getId(),
-                'recordingId' => (string) $session->getRecording()->getId(),
-                'userId' => (string) $user->getId(),
-            ]),
-            true
+        $this->bus->dispatch(new StartAiSessionMessage(
+            sessionId: (string) $session->getId(),
+            recordingId: (string) $session->getRecording()->getId(),
+            userId: (string) $user->getId(),
         ));
 
         return $this->json(['ok' => true]);
@@ -176,11 +171,11 @@ class AiSessionController extends AbstractController
             return $this->json(['error' => 'No input provided'], Response::HTTP_BAD_REQUEST);
         }
 
+        // Publish to per-session command topic (the handler subscribes to this)
         $this->hub->publish(new Update(
-            'ai-session-daemon',
+            'ai-session/' . $session->getId() . '/commands',
             json_encode([
                 'type' => 'input',
-                'sessionId' => (string) $session->getId(),
                 'input' => $input,
             ]),
             true
@@ -199,12 +194,10 @@ class AiSessionController extends AbstractController
             throw $this->createAccessDeniedException();
         }
 
+        // Tell the handler to terminate
         $this->hub->publish(new Update(
-            'ai-session-daemon',
-            json_encode([
-                'type' => 'close',
-                'sessionId' => (string) $session->getId(),
-            ]),
+            'ai-session/' . $session->getId() . '/commands',
+            json_encode(['type' => 'close']),
             true
         ));
 

@@ -90,7 +90,7 @@ applications:
 
       ai-session:
         commands:
-          start: php bin/console app:ai-session-daemon
+          start: php bin/console messenger:consume ai-session --time-limit=7200 --memory-limit=256M
         mounts:
           '/var': { source: storage, source_path: var }
           '/.pi': { source: storage, source_path: pi }
