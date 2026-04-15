@@ -83,28 +83,41 @@ final class AiSessionDaemonCommand extends Command
             ->getToken($config->signer(), $config->signingKey())
             ->toString();
 
-        $url = $this->mercureUrl . '?' . http_build_query(['topic' => 'ai-session-daemon']);
+        $parsed = parse_url($this->mercureUrl);
+        $host = $parsed['host'] ?? 'localhost';
+        $port = $parsed['port'] ?? (($parsed['scheme'] ?? 'http') === 'https' ? 443 : 80);
+        $path = ($parsed['path'] ?? '') . '?' . http_build_query(['topic' => 'ai-session-daemon']);
+        $transport = (($parsed['scheme'] ?? 'http') === 'https') ? 'ssl' : 'tcp';
 
-        $context = stream_context_create([
-            'http' => [
-                'header' => "Accept: text/event-stream\r\nAuthorization: Bearer " . $jwt,
-                'timeout' => 0,
-            ],
-        ]);
+        $stream = @stream_socket_client(
+            $transport . '://' . $host . ':' . $port,
+            $errno,
+            $errstr,
+            10
+        );
 
-        $stream = @fopen($url, 'r', false, $context);
         if ($stream === false) {
-            error_log('[AiSessionDaemon] Failed to connect to Mercure, retrying in 5s...');
+            error_log(sprintf('[AiSessionDaemon] Failed to connect to Mercure at %s:%d: %s', $host, $port, $errstr));
             EventLoop::delay(5.0, fn () => $this->connectToMercure());
 
             return;
         }
 
+        $request = sprintf(
+            "GET %s HTTP/1.1\r\nHost: %s\r\nAccept: text/event-stream\r\nAuthorization: Bearer %s\r\nCache-Control: no-cache\r\n\r\n",
+            $path,
+            $host,
+            $jwt
+        );
+        fwrite($stream, $request);
         stream_set_blocking($stream, false);
-        error_log('[AiSessionDaemon] Connected to Mercure SSE');
+
+        error_log('[AiSessionDaemon] Connected to Mercure SSE at ' . $host . ':' . $port);
 
         $buffer = '';
-        EventLoop::onReadable($stream, function (string $callbackId, $resource) use (&$buffer) {
+        $headersRead = false;
+
+        EventLoop::onReadable($stream, function (string $callbackId, $resource) use (&$buffer, &$headersRead) {
             $data = @fread($resource, 8192);
             if ($data === false || $data === '') {
                 if (feof($resource)) {
@@ -118,6 +131,20 @@ final class AiSessionDaemonCommand extends Command
             }
 
             $buffer .= $data;
+
+            // Skip HTTP response headers
+            if (!$headersRead) {
+                $headerEnd = strpos($buffer, "\r\n\r\n");
+                if ($headerEnd === false) {
+                    return; // Haven't received all headers yet
+                }
+                $headers = substr($buffer, 0, $headerEnd);
+                $buffer = substr($buffer, $headerEnd + 4);
+                $headersRead = true;
+                error_log('[AiSessionDaemon] SSE headers received: ' . explode("\r\n", $headers)[0]);
+            }
+
+            // Parse SSE events (double newline delimited)
             while (($pos = strpos($buffer, "\n\n")) !== false) {
                 $event = substr($buffer, 0, $pos);
                 $buffer = substr($buffer, $pos + 2);
@@ -146,6 +173,8 @@ final class AiSessionDaemonCommand extends Command
 
             return;
         }
+
+        error_log(sprintf('[AiSessionDaemon] Received message type=%s', $msg['type']));
 
         try {
             match ($msg['type']) {
