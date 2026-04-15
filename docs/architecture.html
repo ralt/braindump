@@ -333,14 +333,13 @@
                     <h3>PostgreSQL</h3>
                     <span class="badge badge-required">Required</span>
                 </div>
-                <p>Serves three distinct roles:</p>
+                <p>Serves two distinct roles:</p>
                 <ul class="uses-list">
                     <li><strong>Application data</strong> &mdash; recordings, users, AI sessions, shares (Doctrine ORM)</li>
-                    <li><strong>Message queue</strong> &mdash; <code>async</code> and <code>ai-session</code> Messenger transports use Doctrine transport with LISTEN/NOTIFY for instant delivery without polling</li>
-                    <li><strong>Session input relay</strong> &mdash; browser keystrokes reach the pi.dev process via <code>NOTIFY ai_input_{sessionId}</code> from the web container, picked up by <code>LISTEN</code> on the worker</li>
+                    <li><strong>Message queue</strong> &mdash; the <code>async</code> Messenger transport uses Doctrine transport with LISTEN/NOTIFY for instant delivery without polling (transcription jobs)</li>
                 </ul>
                 <div class="alternative">
-                    <strong>Alternative:</strong> RabbitMQ can replace roles 2 and 3. Symfony Messenger supports AMQP natively, and per-session queues would handle the input relay. Adds infrastructure cost but handles high message volumes better.
+                    <strong>Alternative:</strong> RabbitMQ can replace the message queue role. Symfony Messenger supports AMQP natively. Adds infrastructure cost but handles high message volumes better.
                 </div>
             </div>
 
@@ -349,14 +348,15 @@
                     <h3>Mercure</h3>
                     <span class="badge badge-required">Required</span>
                 </div>
-                <p>Server-Sent Events hub for pushing data from server to browser:</p>
+                <p>Server-Sent Events hub used for both browser streaming and internal IPC:</p>
                 <ul class="uses-list">
                     <li><strong>Transcription status</strong> &mdash; worker publishes progress updates, browser subscribes via EventSource</li>
                     <li><strong>AI session output</strong> &mdash; pi.dev PTY output is published chunk-by-chunk to the browser terminal (xterm.js)</li>
+                    <li><strong>AI session daemon IPC</strong> &mdash; the web container publishes start/input/close commands to the <code>ai-session-daemon</code> topic; the daemon subscribes via SSE and routes them to the correct PTY</li>
                 </ul>
-                <p>Routed same-origin at <code>/.well-known/mercure</code> to avoid CORS. The browser gets a JWT cookie via <code>Authorization::setCookie</code> to authorize subscriptions.</p>
+                <p>Routed same-origin at <code>/.well-known/mercure</code> to avoid CORS. The browser gets a JWT cookie via <code>Authorization::setCookie</code> to authorize subscriptions. The daemon uses a server-side subscriber JWT.</p>
                 <div class="alternative">
-                    <strong>Alternative:</strong> WebSockets (more complex, bidirectional not needed). Polling (wasteful, poor latency). Mercure is the right fit for one-way server-to-browser streaming.
+                    <strong>Alternative:</strong> WebSockets (more complex, bidirectional not needed for browser). Unix domain sockets or PostgreSQL NOTIFY for daemon IPC (but Mercure is already running and keeps the architecture DB-agnostic).
                 </div>
             </div>
 
@@ -392,7 +392,7 @@
                     <h3>Redis</h3>
                     <span class="badge badge-unused">Not currently used</span>
                 </div>
-                <p>Could replace PostgreSQL LISTEN/NOTIFY for the session input relay using Pub/Sub. NOTIFY has an 8 KB payload limit per message; Redis Pub/Sub does not. Not needed at current scale.</p>
+                <p>Could serve as a Messenger transport or session cache. Not needed at current scale since PostgreSQL handles the message queue and Mercure handles all real-time IPC.</p>
             </div>
 
             <div class="component">
@@ -400,7 +400,7 @@
                     <h3>RabbitMQ</h3>
                     <span class="badge badge-unused">Not currently used</span>
                 </div>
-                <p>Could replace the Doctrine transport for Symfony Messenger if message volume or delivery guarantees require it. Messenger supports AMQP out of the box. Also a viable option for the session input relay via per-session queues.</p>
+                <p>Could replace the Doctrine transport for Symfony Messenger if message volume or delivery guarantees require it. Messenger supports AMQP out of the box.</p>
             </div>
 
         </div>
@@ -434,35 +434,30 @@
    |&lt;------------- Mercure ----|&lt;-------------------------|                        |</div>
 
         <h3 style="margin-top: 2.5rem; margin-bottom: 0.5rem;">AI Session Flow</h3>
-        <p>From starting a session to interactive terminal I/O.</p>
-        <div class="flow-diagram">Browser                    Web Container              Worker
+        <p>From starting a session to interactive terminal I/O. A single daemon process manages all sessions concurrently on one Revolt event loop. All IPC flows through Mercure.</p>
+        <div class="flow-diagram">Browser                    Web Container              Daemon (single process)
    |                           |                          |
-   |  POST /ai-session/start   |                          |
-   |--------------------------&gt;| Create AiSession entity  |
-   |     sessionId, topic      |                          |
+   |  POST /ai-session/start   |                          |  SSE subscribe:
+   |--------------------------&gt;| Create AiSession entity  |  "ai-session-daemon"
+   |     sessionId, topic      |                          |  (always connected)
    |&lt;--------------------------|                          |
    |                           |                          |
    |  EventSource subscribe    |       Mercure            |
    |--------------------------&gt;|         ^                |
    |  POST /ai-session/dispatch|         |                |
-   |--------------------------&gt;|--publish+                |
-   |  SSE: "Queuing session"   |                          |
-   |&lt;--------------------------|                          |
-   |           bus.dispatch---&gt;| PostgreSQL (Messenger)--&gt;|
-   |                           |          exec nohup-----&gt;| RunAiSessionCommand
-   |                           |                          |  +-- pi.dev (PTY)
-   |                           |                          |  +-- Revolt event loop
-   |                           |                          |  +-- pg LISTEN
+   |--------------------------&gt;|--publish "start"--------&gt;|--&gt; SSE event received
+   |  SSE: "Queuing session"   |  (ai-session-daemon)     |  proc_open(pi.dev, PTY)
+   |&lt;--------------------------|                          |  register on event loop
+   |                           |                          |
    |     SSE: terminal output  |        publish           |
-   |&lt;------------- Mercure ----|&lt;-------------------------|
+   |&lt;------------- Mercure ----|&lt;-------------------------|  (PTY stdout)
    |                           |                          |
    |  POST /input              |                          |
-   |--------------------------&gt;|                          |
-   |              NOTIFY------&gt;| PostgreSQL--------------&gt;|--&gt; fwrite(PTY)
+   |--------------------------&gt;|--publish "input"--------&gt;|--&gt; fwrite(PTY)
+   |                           |  (ai-session-daemon)     |
    |                           |                          |
    |  DELETE /ai-session       |                          |
-   |--------------------------&gt;|                          |
-   |           NOTIFY \x04----&gt;| PostgreSQL--------------&gt;|--&gt; proc_terminate
+   |--------------------------&gt;|--publish "close"--------&gt;|--&gt; proc_terminate
    |     SSE: "Session ended"  |        publish           |
    |&lt;------------- Mercure ----|&lt;-------------------------|</div>
     </section>
@@ -490,10 +485,10 @@
                         <td>High message volume, need dead-letter queues, priority routing</td>
                     </tr>
                     <tr>
-                        <td>Session input relay</td>
-                        <td>PostgreSQL LISTEN/NOTIFY</td>
-                        <td>Redis Pub/Sub or RabbitMQ</td>
-                        <td>Payloads exceed 8 KB, or need delivery guarantees (NOTIFY is fire-and-forget)</td>
+                        <td>Session IPC (start/input/close)</td>
+                        <td>Mercure publish/subscribe</td>
+                        <td>Redis Pub/Sub or Unix sockets</td>
+                        <td>Very high message rate per session, or need delivery guarantees (Mercure SSE is fire-and-forget)</td>
                     </tr>
                     <tr>
                         <td>Full-text search</td>

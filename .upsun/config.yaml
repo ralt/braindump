@@ -25,7 +25,6 @@ applications:
     runtime:
       extensions:
         - pdo_pgsql
-        - pgsql
         - sodium
         - intl
         - mbstring
