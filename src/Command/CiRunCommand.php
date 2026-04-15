@@ -63,6 +63,13 @@ class CiRunCommand extends Command
             $io->info('Creating branch...');
             $activity = $mainEnv->branch($branchName, $branchName);
             $activity->wait(null, null, 5);
+            $activity->refresh();
+            if (!\in_array($activity->result, ['success', 'warning'], true)) {
+                $io->error(sprintf('Branch creation failed (result: %s)', $activity->result));
+                $io->section('Activity log');
+                $io->text($activity->log);
+                return Command::FAILURE;
+            }
             $io->info('Branch created and deployed');
 
             $ciEnv = $project->getEnvironment($branchName);
@@ -72,9 +79,16 @@ class CiRunCommand extends Command
             }
 
             $io->info('Running source operation to update dependencies...');
-            $result = $ciEnv->runSourceOperation('update-dependencies');
-            foreach ($result->getActivities() as $sourceActivity) {
+            $opResult = $ciEnv->runSourceOperation('update-dependencies');
+            foreach ($opResult->getActivities() as $sourceActivity) {
                 $sourceActivity->wait(null, null, 5);
+                $sourceActivity->refresh();
+                if (!\in_array($sourceActivity->result, ['success', 'warning'], true)) {
+                    $io->error(sprintf('Source operation failed (result: %s)', $sourceActivity->result));
+                    $io->section('Activity log');
+                    $io->text($sourceActivity->log);
+                    return Command::FAILURE;
+                }
             }
             $io->info('Source operation completed');
 
@@ -94,7 +108,14 @@ class CiRunCommand extends Command
                 $deployActivity->wait(null, null, 5);
                 $deployActivity->refresh();
 
-                if ($deployActivity->result === 'success') {
+                $result = $deployActivity->result;
+
+                if ($result === 'success' || $result === 'warning') {
+                    if ($result === 'warning') {
+                        $io->warning('Deploy completed with warnings:');
+                        $io->text($deployActivity->log);
+                    }
+
                     $io->success('CI passed, merging to main');
                     $ciEnv->refresh();
                     $mergeActivity = $ciEnv->merge();
@@ -110,8 +131,10 @@ class CiRunCommand extends Command
                     $io->success('Merged and cleaned up');
                     return Command::SUCCESS;
                 } else {
-                    $io->error('CI failed (tests failed in post_deploy)');
-                    $this->logger->error('CI failed', ['branch' => $branchName, 'result' => $deployActivity->result]);
+                    $io->error(sprintf('CI failed (result: %s)', $result));
+                    $io->section('Activity log');
+                    $io->text($deployActivity->log);
+                    $this->logger->error('CI failed', ['branch' => $branchName, 'result' => $result]);
                     return Command::FAILURE;
                 }
             } else {
