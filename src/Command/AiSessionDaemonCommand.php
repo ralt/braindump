@@ -34,18 +34,12 @@ final class AiSessionDaemonCommand extends Command
         'openrouter' => 'OPENROUTER_API_KEY',
     ];
 
-    private const HEARTBEAT_INTERVAL = 30;
-    private const HEARTBEAT_TIMEOUT = 60;
-
     /** @var array<string, array{process: resource, ptyMaster: resource, stderr: resource, topic: string, callbackIds: list<string>, tmpDir: string}> */
     private array $sessions = [];
 
-    private float $lastDataReceived = 0;
     private ?string $sseCallbackId = null;
     /** @var resource|null */
     private $sseStream = null;
-    private ?string $heartbeatCallbackId = null;
-    private ?string $watchdogCallbackId = null;
 
     public function __construct(
         private EntityManagerInterface $em,
@@ -60,20 +54,12 @@ final class AiSessionDaemonCommand extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $this->lastDataReceived = microtime(true);
         $this->connectToMercure();
-        $this->startHeartbeat();
 
         $shutdown = function () {
             error_log('[AiSessionDaemon] Shutting down...');
             foreach (array_keys($this->sessions) as $sessionId) {
                 $this->cleanupSession($sessionId);
-            }
-            if ($this->heartbeatCallbackId) {
-                EventLoop::cancel($this->heartbeatCallbackId);
-            }
-            if ($this->watchdogCallbackId) {
-                EventLoop::cancel($this->watchdogCallbackId);
             }
             $this->closeSseConnection();
             EventLoop::getDriver()->stop();
@@ -88,32 +74,6 @@ final class AiSessionDaemonCommand extends Command
         EventLoop::run();
 
         return Command::SUCCESS;
-    }
-
-    private function startHeartbeat(): void
-    {
-        // Publish a ping to our own topic every HEARTBEAT_INTERVAL seconds
-        $this->heartbeatCallbackId = EventLoop::repeat(self::HEARTBEAT_INTERVAL, function () {
-            try {
-                $this->hub->publish(new Update(
-                    'ai-session-daemon',
-                    json_encode(['type' => 'ping', 'ts' => microtime(true)]),
-                    true
-                ));
-            } catch (\Throwable $e) {
-                error_log('[AiSessionDaemon] Heartbeat publish failed: ' . $e->getMessage());
-            }
-        });
-
-        // Check if we've received any data recently; if not, force reconnect
-        $this->watchdogCallbackId = EventLoop::repeat(10, function () {
-            $elapsed = microtime(true) - $this->lastDataReceived;
-            if ($elapsed > self::HEARTBEAT_TIMEOUT) {
-                error_log(sprintf('[AiSessionDaemon] No data for %.0fs, force reconnecting...', $elapsed));
-                $this->closeSseConnection();
-                $this->connectToMercure();
-            }
-        });
     }
 
     private function closeSseConnection(): void
@@ -162,6 +122,18 @@ final class AiSessionDaemonCommand extends Command
             return;
         }
 
+        // Enable TCP keepalive so the OS detects dead connections
+        $socket = socket_import_stream($stream);
+        if ($socket !== false) {
+            socket_set_option($socket, \SOL_SOCKET, \SO_KEEPALIVE, 1);
+            // Linux: start probing after 30s idle, every 10s, give up after 3 failures (~60s total)
+            if (\defined('SOL_TCP')) {
+                @socket_set_option($socket, \SOL_TCP, 4, 30);  // TCP_KEEPIDLE
+                @socket_set_option($socket, \SOL_TCP, 5, 10);  // TCP_KEEPINTVL
+                @socket_set_option($socket, \SOL_TCP, 6, 3);   // TCP_KEEPCNT
+            }
+        }
+
         $request = sprintf(
             "GET %s HTTP/1.1\r\nHost: %s\r\nAccept: text/event-stream\r\nAuthorization: Bearer %s\r\nCache-Control: no-cache\r\n\r\n",
             $path,
@@ -172,7 +144,6 @@ final class AiSessionDaemonCommand extends Command
         stream_set_blocking($stream, false);
 
         $this->sseStream = $stream;
-        $this->lastDataReceived = microtime(true);
 
         error_log('[AiSessionDaemon] Connected to Mercure SSE at ' . $host . ':' . $port);
 
@@ -243,7 +214,6 @@ final class AiSessionDaemonCommand extends Command
                 'start' => $this->handleStart($msg),
                 'input' => $this->handleInput($msg),
                 'close' => $this->handleClose($msg),
-                'ping' => null, // heartbeat acknowledged by lastDataReceived update
                 default => error_log('[AiSessionDaemon] Unknown type: ' . $msg['type']),
             };
         } catch (\Throwable $e) {
