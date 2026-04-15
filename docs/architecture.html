@@ -523,6 +523,77 @@
         </div>
     </section>
 
+    <!-- ===== CURRENT LIMITATIONS ===== -->
+    <section class="section">
+        <h2>Current Limitations</h2>
+        <p>The AI session daemon has architectural constraints imposed by running as a standalone PHP CLI process outside of the web server. These are workable but ugly.</p>
+
+        <div class="component-grid">
+
+            <div class="component">
+                <div class="component-header">
+                    <h3>Raw TCP socket for Mercure SSE</h3>
+                </div>
+                <p>The daemon needs to subscribe to Mercure SSE to receive session commands (start, input, close). PHP's <code>fopen()</code> HTTP wrapper buffers SSE responses internally and never yields individual events. So the daemon opens a raw <code>stream_socket_client()</code> TCP connection, writes the HTTP request by hand, and parses SSE frames manually on the Revolt event loop.</p>
+                <p>This means managing TCP keepalive, handling reconnection on EOF, parsing HTTP response headers, and dealing with chunked transfer encoding &mdash; all problems that a proper HTTP client would solve.</p>
+            </div>
+
+            <div class="component">
+                <div class="component-header">
+                    <h3>Separate process for AI sessions</h3>
+                </div>
+                <p>The daemon runs as its own Upsun worker (<code>php bin/console app:ai-session-daemon</code>), completely separate from the web container. This means all communication between the web request handlers and the daemon must go through Mercure &mdash; there's no shared memory, no direct function calls, no way to pass objects. Every user keystroke takes this path: browser &rarr; HTTP POST &rarr; web container &rarr; Mercure publish &rarr; SSE event &rarr; daemon &rarr; PTY write.</p>
+                <p>The web container also publishes to Mercure synchronously during the HTTP request, adding latency to every <code>/input</code> API call.</p>
+            </div>
+
+            <div class="component">
+                <div class="component-header">
+                    <h3>No connection pooling for Mercure publishes</h3>
+                </div>
+                <p>The daemon publishes PTY output to the browser via Mercure HTTP POSTs. Using Symfony's <code>HttpClient</code> (curl_multi), these are non-blocking &mdash; <code>request()</code> returns immediately and the response completes in the background. But there's no explicit lifecycle management: pending responses accumulate and are only finalized when curl_multi is polled internally. Under heavy PTY output, this can mean hundreds of in-flight HTTP connections.</p>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- ===== FRANKENPHP ===== -->
+    <section class="section">
+        <h2>FrankenPHP Migration Path</h2>
+        <p>FrankenPHP's worker mode keeps PHP processes alive between requests and has native Mercure integration. Migrating to it would eliminate most of the limitations above.</p>
+
+        <div class="component-grid">
+
+            <div class="component">
+                <div class="component-header">
+                    <h3>Native Mercure subscriber</h3>
+                </div>
+                <p>FrankenPHP embeds the Mercure hub in the same process. A worker-mode PHP script can subscribe to Mercure topics directly through the Go runtime &mdash; no TCP sockets, no manual HTTP, no SSE parsing. The entire <code>connectToMercure()</code> method (raw socket, keepalive, header parsing, reconnection logic) gets replaced by a single API call.</p>
+            </div>
+
+            <div class="component">
+                <div class="component-header">
+                    <h3>In-process daemon</h3>
+                </div>
+                <p>With worker mode, the AI session daemon can run inside the web server process. Session start/input/close commands can be dispatched directly to the daemon's Revolt event loop via shared memory instead of going through Mercure. This eliminates an entire network hop for every keystroke and removes the need for the separate Upsun worker container.</p>
+            </div>
+
+            <div class="component">
+                <div class="component-header">
+                    <h3>Zero-cost Mercure publishing</h3>
+                </div>
+                <p>Publishing to Mercure from inside FrankenPHP is an in-process function call to the embedded hub &mdash; no HTTP overhead, no TCP connections, no curl_multi. PTY output goes directly from the event loop to the subscriber's SSE stream without ever leaving the process.</p>
+            </div>
+
+            <div class="component">
+                <div class="component-header">
+                    <h3>Simpler deployment</h3>
+                </div>
+                <p>Today: web container + transcription worker + AI session daemon worker + standalone Mercure service = 4 processes. With FrankenPHP: web server (with embedded Mercure and AI daemon) + transcription worker = 2 processes. Fewer moving parts, fewer things to monitor, fewer things that can silently break.</p>
+            </div>
+
+        </div>
+    </section>
+
 </div>
 
 <footer>
