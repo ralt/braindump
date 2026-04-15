@@ -18,11 +18,11 @@
         </form>
     </div>
 
-    <turbo-frame id="search-results">
+    <turbo-frame id="search-results" data-turbo-action="advance">
     {% if recordings is empty %}
         <div class="card empty-state">
             <p class="text-muted">No recordings yet.</p>
-            <a href="{{ path('app_recording_new') }}" class="btn btn-primary mt-1">Create your first recording</a>
+            <a href="{{ path('app_recording_new') }}" class="btn btn-primary mt-1" data-turbo-frame="_top">Create your first recording</a>
         </div>
     {% else %}
         <div class="card card-flush">
@@ -39,11 +39,11 @@
                 <tbody>
                     {% for recording in recordings %}
                         <tr>
-                            <td><a href="{{ path('app_recording_show', {id: recording.id}) }}">{{ recording.title }}</a></td>
+                            <td><a href="{{ path('app_recording_show', {id: recording.id}) }}" data-turbo-frame="_top">{{ recording.title }}</a></td>
                             <td><span class="badge badge-{{ recording.status.value }}">{{ recording.status.value }}</span></td>
                             <td class="text-muted">{{ recording.owner.displayName }}</td>
                             <td class="text-muted">{{ recording.createdAt|date('Y-m-d H:i') }}</td>
-                            <td><a href="{{ path('app_recording_show', {id: recording.id}) }}" class="btn btn-secondary btn-sm">View</a></td>
+                            <td><a href="{{ path('app_recording_show', {id: recording.id}) }}" class="btn btn-secondary btn-sm" data-turbo-frame="_top">View</a></td>
                         </tr>
                     {% endfor %}
                 </tbody>
