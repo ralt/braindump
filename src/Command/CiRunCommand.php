@@ -77,10 +77,11 @@ class CiRunCommand extends Command
             $activity->refresh();
             if (!\in_array($activity->result, ['success', 'warning'], true)) {
                 $io->error(sprintf('Branch creation failed (result: %s)', $activity->result));
-                $analysis = $this->analyzeFailure($activity->log);
+                $log = $this->getActivityLog($activity, $connector);
+                $analysis = $this->analyzeFailure($log);
                 $this->notify(
                     'CI failed: branch creation',
-                    sprintf("Branch: %s\nResult: %s\n\nActivity log:\n%s%s", $branchName, $activity->result, $activity->log, $analysis !== '' ? "\n\nAI Analysis:\n" . $analysis : ''),
+                    sprintf("Branch: %s\nResult: %s\n\nActivity log:\n%s%s", $branchName, $activity->result, $log, $analysis !== '' ? "\n\nAI Analysis:\n" . $analysis : ''),
                 );
                 return Command::FAILURE;
             }
@@ -99,13 +100,14 @@ class CiRunCommand extends Command
             foreach ($opResult->getActivities() as $sourceActivity) {
                 $sourceActivity->wait(null, null, 5);
                 $sourceActivity->refresh();
-                $sourceLog .= $sourceActivity->log;
+                $activityLog = $this->getActivityLog($sourceActivity, $connector);
+                $sourceLog .= $activityLog;
                 if (!\in_array($sourceActivity->result, ['success', 'warning'], true)) {
                     $io->error(sprintf('Source operation failed (result: %s)', $sourceActivity->result));
-                    $analysis = $this->analyzeFailure($sourceActivity->log);
+                    $analysis = $this->analyzeFailure($activityLog);
                     $this->notify(
                         'CI failed: source operation',
-                        sprintf("Branch: %s\nResult: %s\n\nActivity log:\n%s%s", $branchName, $sourceActivity->result, $sourceActivity->log, $analysis !== '' ? "\n\nAI Analysis:\n" . $analysis : ''),
+                        sprintf("Branch: %s\nResult: %s\n\nActivity log:\n%s%s", $branchName, $sourceActivity->result, $activityLog, $analysis !== '' ? "\n\nAI Analysis:\n" . $analysis : ''),
                     );
                     return Command::FAILURE;
                 }
@@ -139,10 +141,11 @@ class CiRunCommand extends Command
 
             if ($result !== 'success' && $result !== 'warning') {
                 $io->error(sprintf('CI failed (result: %s)', $result));
-                $analysis = $this->analyzeFailure($deployActivity->log);
+                $deployLog = $this->getActivityLog($deployActivity, $connector);
+                $analysis = $this->analyzeFailure($deployLog);
                 $this->notify(
                     'CI failed: tests',
-                    sprintf("Branch: %s\nResult: %s\n\nActivity log:\n%s%s", $branchName, $result, $deployActivity->log, $analysis !== '' ? "\n\nAI Analysis:\n" . $analysis : ''),
+                    sprintf("Branch: %s\nResult: %s\n\nActivity log:\n%s%s", $branchName, $result, $deployLog, $analysis !== '' ? "\n\nAI Analysis:\n" . $analysis : ''),
                 );
                 $this->logger->error('CI failed', ['branch' => $branchName, 'result' => $result]);
                 return Command::FAILURE;
@@ -216,6 +219,21 @@ class CiRunCommand extends Command
         $ciEnv->refresh();
         $ciEnv->delete();
         $io->success('Merged and cleaned up');
+    }
+
+    private function getActivityLog(object $activity, Connector $connector): string
+    {
+        try {
+            if ($activity->hasLink('log')) {
+                $url = $activity->getLink('log');
+                $response = $connector->getClient()->get($url);
+                return (string) $response->getBody();
+            }
+        } catch (\Throwable $e) {
+            $this->logger->warning('Failed to fetch streaming log', ['error' => $e->getMessage()]);
+        }
+
+        return $activity->log;
     }
 
     private function analyzeFailure(string $activityLog): string
