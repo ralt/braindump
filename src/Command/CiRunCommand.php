@@ -5,6 +5,7 @@ namespace App\Command;
 use Platformsh\Client\Connection\Connector;
 use Platformsh\Client\PlatformClient;
 use Psr\Log\LoggerInterface;
+use Symfony\AI\Platform\Message\Content\Text;
 use Symfony\AI\Platform\Message\MessageBag;
 use Symfony\AI\Platform\Message\SystemMessage;
 use Symfony\AI\Platform\Message\UserMessage;
@@ -35,6 +36,18 @@ class CiRunCommand extends Command
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
+    {
+        // Suppress deprecation warnings from platformsh/client (PHP 8.4 implicit nullable params)
+        $previousLevel = error_reporting(error_reporting() & ~\E_DEPRECATED);
+
+        try {
+            return $this->doExecute($input, $output);
+        } finally {
+            error_reporting($previousLevel);
+        }
+    }
+
+    private function doExecute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
 
@@ -243,7 +256,7 @@ class CiRunCommand extends Command
 
             $messages = new MessageBag(
                 new SystemMessage('You are a DevOps assistant analyzing CI/CD activity logs from an Upsun (Platform.sh) deployment. Identify the root cause of the failure and suggest concrete fixes. Be concise — bullet points preferred.'),
-                new UserMessage("This CI activity failed. Analyze the log and suggest how to fix it:\n\n" . $log),
+                new UserMessage(new Text("This CI activity failed. Analyze the log and suggest how to fix it:\n\n" . $log)),
             );
 
             return $this->platform->invoke('gpt-4.1-mini', $messages)->asText();
