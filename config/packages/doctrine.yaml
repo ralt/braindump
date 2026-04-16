@@ -24,8 +24,8 @@ doctrine:
 when@test:
     doctrine:
         dbal:
-            # "TEST_TOKEN" is typically set by ParaTest
-            dbname_suffix: '_test%env(default::TEST_TOKEN)%'
+            # Use the same database — no suffix on Upsun (tests run against real PostgreSQL)
+            dbname_suffix: ''
 
 when@prod:
     doctrine:
