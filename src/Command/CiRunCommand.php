@@ -37,18 +37,6 @@ class CiRunCommand extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        // Suppress deprecation warnings from platformsh/client (PHP 8.4 implicit nullable params)
-        $previousLevel = error_reporting(error_reporting() & ~\E_DEPRECATED);
-
-        try {
-            return $this->doExecute($input, $output);
-        } finally {
-            error_reporting($previousLevel);
-        }
-    }
-
-    private function doExecute(InputInterface $input, OutputInterface $output): int
-    {
         $io = new SymfonyStyle($input, $output);
 
         $projectId = $_ENV['PLATFORM_PROJECT'] ?? '';
