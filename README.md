@@ -70,7 +70,7 @@ Copy `.env` to `.env.local` and configure:
 DATABASE_URL="postgresql://user:password@127.0.0.1:5432/braindump?serverVersion=16&charset=utf8"
 
 # OpenAI (for transcription)
-OPENAI_WHISPER_API_KEY=sk-...
+OPENAI_API_KEY=sk-...
 
 # Mercure (local dev — run the Mercure binary separately, see below)
 MERCURE_URL=http://localhost:3000/.well-known/mercure
@@ -123,7 +123,7 @@ php bin/phpunit
 | Variable | Description | Default |
 |---|---|---|
 | `DATABASE_URL` | PostgreSQL connection string | — |
-| `OPENAI_WHISPER_API_KEY` | OpenAI API key for Whisper transcription and CI failure analysis | — |
+| `OPENAI_API_KEY` | OpenAI API key (Whisper transcription, CI failure analysis) | — |
 | `MERCURE_URL` | Mercure hub URL (server-side) | — |
 | `MERCURE_PUBLIC_URL` | Mercure hub URL (browser-side) | — |
 | `MERCURE_JWT_SECRET` | JWT secret for Mercure | — |

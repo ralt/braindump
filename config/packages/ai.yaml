@@ -4,7 +4,7 @@ ai:
         # see https://github.com/symfony/ai/tree/main/src/platform#platform-bridges
 
         # openai:
-        #    api_key: '%env(OPENAI_WHISPER_API_KEY)%'
+        #    api_key: '%env(OPENAI_API_KEY)%'
 
     agent:
         # Agent configuration
