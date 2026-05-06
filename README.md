@@ -2,7 +2,7 @@
 
 Braindump is not a quick voice memo app. It's for the longer stuff — the 5-minute explanation of an architecture you're considering, the 15-minute walkthrough of a problem you're stuck on, the detailed brain dump you do when you need to get everything out of your head and into something searchable. The name is literal: dump your brain, then work with what comes out.
 
-Record audio in your browser, get it transcribed via OpenAI Whisper, search across all your transcriptions, share them with others, and start interactive AI sessions (powered by pi.dev) to think through the content. Built with Symfony, deployed on Upsun.
+Record audio in your browser, get it transcribed via OpenAI Whisper, search across all your transcriptions, share them with others, and refine the text with an inline AI rewriting chat. Built with Symfony, deployed on Upsun.
 
 ## Features
 
@@ -10,7 +10,7 @@ Record audio in your browser, get it transcribed via OpenAI Whisper, search acro
 - **Automatic Transcription** — Audio is transcribed in the background via OpenAI Whisper through Symfony AI.
 - **Full-Text Search** — PostgreSQL full-text search across titles and transcriptions, with configurable OpenSearch backend.
 - **Sharing** — Share recordings with other users by email, with view or edit permissions (Google Docs-style).
-- **AI Sessions** — Start an interactive AI terminal session (via pi.dev) from your browser that reads your transcription. Supports multiple providers (Anthropic, OpenAI, Google, Groq, Mistral, DeepSeek, xAI, OpenRouter). Each user provides their own API key, stored encrypted via Upsun Vault KMS.
+- **Rewriting Chat** — On the recording page, the transcript is fed to an AI assistant scoped to rewriting/editing. Stream replies appear inline, history persists across reloads, and there's a voice-input button (with mic device picker) for quick refinements. Supports multiple providers (Anthropic, OpenAI, Google, Groq, Mistral, DeepSeek, xAI, OpenRouter). Each user provides their own API key, stored encrypted via Upsun Vault KMS.
 - **Enterprise-Ready Auth** — Form login with per-user roles and permissions. OIDC for enterprise SSO coming soon.
 - **Admin Back-Office** — EasyAdmin dashboard for user management.
 
@@ -24,11 +24,9 @@ This separation means the web application stays responsive regardless of how man
 
 ### Why Mercure for real-time updates
 
-AI sessions are long-lived and interactive — a user might keep a session open for 30 minutes while they work through ideas. Traditional PHP-FPM ties up one worker per open connection, and with limited workers, even a handful of concurrent sessions would starve the web application of capacity.
+Two flows publish events that the browser needs to receive live: the transcription worker reporting status changes, and the rewriting chat streaming AI tokens to every open tab on the same recording. Traditional PHP-FPM ties up one worker per open SSE connection — with limited workers, a handful of users staring at a chat would starve the rest of the app.
 
-Mercure (via Server-Sent Events) handles persistent connections with async I/O, so hundreds of concurrent sessions don't exhaust PHP workers. The web application publishes events to the Mercure hub, which efficiently fans them out to connected browsers.
-
-On Upsun, Mercure runs as a managed service on a dedicated subdomain, keeping it fully decoupled from the PHP-FPM application.
+Mercure handles persistent SSE connections with async I/O, so the PHP application only does the publishing (a fast HTTP call to the hub) and never holds the long-lived browser connection itself. On Upsun, Mercure runs as a managed service on a dedicated subdomain, fully decoupled from the PHP-FPM tier.
 
 ### Why network storage for audio files
 
@@ -36,7 +34,7 @@ Audio files need to be accessible by both the web application (which receives th
 
 ### Why Vault KMS for API key encryption
 
-Each user provides their own AI provider API key for interactive sessions. These keys are sensitive credentials that must be stored encrypted at rest. On Upsun, the application uses the managed Vault KMS service for transit encryption — the key never exists in plaintext in the database or in application config. The encryption key is managed by the platform, rotated independently, and never leaves the Vault service.
+Each user provides their own AI provider API key for the rewriting chat. These keys are sensitive credentials that must be stored encrypted at rest. On Upsun, the application uses the managed Vault KMS service for transit encryption — the key never exists in plaintext in the database or in application config. The encryption key is managed by the platform, rotated independently, and never leaves the Vault service.
 
 ### Why PostgreSQL LISTEN/NOTIFY for the message queue
 
@@ -49,7 +47,6 @@ Symfony Messenger needs a transport for async messages. The simplest option is D
 - PHP 8.4 with extensions: pdo_pgsql, sodium, intl, mbstring, xml
 - Composer 2
 - PostgreSQL 16
-- Node.js (for pi.dev)
 - Symfony CLI (optional, for `symfony server:start`)
 
 ### Installation
@@ -58,7 +55,6 @@ Symfony Messenger needs a transport for async messages. The simplest option is D
 git clone <repo-url>
 cd braindump
 composer install
-npm install -g @mariozechner/pi-coding-agent
 ```
 
 ### Configuration
@@ -102,11 +98,11 @@ Or use EasyAdmin at `/admin` (you'll need to insert an admin user directly into 
 # Web server
 symfony server:start
 
+# Local Mercure hub (required for chat streaming + transcription status)
+./mercure run --config Caddyfile.mercure --adapter caddyfile
+
 # Transcription worker
 php bin/console messenger:consume async --time-limit=3600
-
-# AI session worker
-php bin/console messenger:consume ai-session --time-limit=3600
 
 # CI run (manually trigger dependency update + test cycle on Upsun)
 php bin/console app:ci-run
@@ -142,10 +138,9 @@ The `.upsun/config.yaml` defines the full deployment:
 
 - **Web application**: PHP 8.4 with PHP-FPM
 - **Transcription worker**: Consumes the `async` Messenger transport — runs OpenAI Whisper transcription outside the HTTP request path
-- **AI session worker**: Consumes the `ai-session` Messenger transport — manages long-lived interactive AI sessions (via pi.dev) using `proc_open()`, streaming output through Mercure
 - **Weekly CI cron**: Runs `app:ci-run` — creates an Upsun environment, updates dependencies, runs `phpunit`. Auto-merges security fixes; sends an email with a merge link for non-security updates. On failure, sends the activity log to OpenAI for root-cause analysis and emails the results
 - **PostgreSQL 16**: Primary database
-- **Mercure**: Managed real-time hub
+- **Mercure**: Managed real-time hub (transcription status + chat streaming)
 - **Network storage**: Shared audio file storage
 - **Vault KMS**: Transit encryption for user API keys
 
@@ -160,12 +155,12 @@ Set environment variables via `upsun variable:create`.
 
 - **Symfony 7.4** with PHP 8.4
 - **Symfony AI** (OpenAI Whisper) for speech-to-text
-- **Symfony Messenger** for async job processing
-- **Mercure** for real-time SSE
+- **Symfony Messenger** for async transcription
+- **Mercure** for real-time SSE (transcription status + AI reply streaming)
 - **EasyAdmin** for back-office
 - **PostgreSQL** with full-text search
 - **Stimulus + Turbo** for frontend interactivity
-- **xterm.js** for browser-based terminal (AI sessions)
-- **pi.dev** for multi-provider AI coding agent
+- **marked + DOMPurify** for sanitized markdown rendering of AI replies
+- **Provider SDKs**: direct calls to Anthropic Messages API + OpenAI-compatible chat completions (per-user encrypted keys)
 - **Vault KMS** for API key encryption (transit encryption on Upsun)
 - **Upsun** (formerly Platform.sh) for deployment

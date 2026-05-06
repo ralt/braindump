@@ -349,15 +349,14 @@
                     <h3>Mercure</h3>
                     <span class="badge badge-required">Required</span>
                 </div>
-                <p>Server-Sent Events hub used for both browser streaming and internal IPC:</p>
+                <p>Server-Sent Events hub used to stream live updates from PHP to the browser:</p>
                 <ul class="uses-list">
                     <li><strong>Transcription status</strong> &mdash; worker publishes progress updates, browser subscribes via EventSource</li>
-                    <li><strong>AI session output</strong> &mdash; pi.dev PTY output is published chunk-by-chunk to the browser terminal (xterm.js)</li>
-                    <li><strong>AI session commands</strong> &mdash; the web container publishes input and close commands to a per-session topic; the session worker subscribes via SSE and forwards them to the PTY</li>
+                    <li><strong>Rewriting chat</strong> &mdash; each user message and assistant token delta is published to a per-session topic. Every open tab on the same recording renders the same stream simultaneously.</li>
                 </ul>
-                <p>Routed same-origin at <code>/.well-known/mercure</code> to avoid CORS. The browser gets a JWT cookie via <code>Authorization::setCookie</code> to authorize subscriptions. The daemon uses a server-side subscriber JWT.</p>
+                <p>Routed same-origin at <code>/.well-known/mercure</code> to avoid CORS. The browser gets a JWT cookie via <code>Authorization::setCookie</code> to authorize subscriptions.</p>
                 <div class="alternative">
-                    <strong>Alternative:</strong> WebSockets (more complex, bidirectional not needed for browser). Unix domain sockets or PostgreSQL NOTIFY for daemon IPC (but Mercure is already running and keeps the architecture DB-agnostic).
+                    <strong>Alternative:</strong> WebSockets (more complex, bidirectional not needed). The HTTP request handling the chat keeps the connection alive while it streams to Mercure, with <code>ignore_user_abort(true)</code> ensuring the assistant message persists even if the browser closes mid-stream.
                 </div>
             </div>
 
@@ -410,9 +409,9 @@
             <div class="component-header">
                 <h3>Why both Mercure and PostgreSQL?</h3>
             </div>
-            <p>Mercure (SSE) is <strong>fire-and-forget</strong>: if no subscriber is listening when an event is published, it's gone. This is fine for AI session IPC (keystrokes, start/close commands) because the user sees immediately if something didn't work and can retry.</p>
+            <p>Mercure (SSE) is <strong>fire-and-forget</strong>: if no subscriber is listening when an event is published, it's gone. That's fine for live UI flourishes &mdash; if a chat token delta is missed, the persisted assistant message in PostgreSQL is the canonical record on the next page load.</p>
             <p>Transcription jobs need <strong>durability</strong>: if the worker is restarting during a deploy when a recording is uploaded, the job must not be lost. Symfony Messenger with the Doctrine transport stores messages in a database table and delivers them when the worker comes back. It also provides automatic retry with backoff and a failure transport for dead-letter inspection.</p>
-            <p><strong>Rule of thumb:</strong> use Mercure for real-time IPC where loss is tolerable, Messenger for background jobs where reliability matters.</p>
+            <p><strong>Rule of thumb:</strong> use Mercure for real-time fan-out where loss is tolerable, Messenger for background jobs where reliability matters, PostgreSQL for canonical state.</p>
         </div>
     </section>
 
@@ -443,33 +442,30 @@
    |        SSE: "completed"   |        publish           |                        |
    |&lt;------------- Mercure ----|&lt;-------------------------|                        |</div>
 
-        <h3 style="margin-top: 2.5rem; margin-bottom: 0.5rem;">AI Session Flow</h3>
-        <p>Each AI session runs in its own PHP process, dispatched via Symfony Messenger. The worker picks up a session message, spawns a pi.dev subprocess, and runs a simple I/O loop until the session ends. Output goes to the browser via Mercure; input and close commands arrive via a per-session Mercure SSE subscription.</p>
-        <div class="flow-diagram">Browser                    Web Container              Worker (one per session)
-   |                           |                          |
-   |  POST /ai-session/start   |                          |
-   |--------------------------&gt;| Create AiSession entity  |
-   |     sessionId, topic      |                          |
-   |&lt;--------------------------|                          |
-   |                           |                          |
-   |  EventSource subscribe    |                          |
-   |--------------------------&gt;|                          |
-   |  POST /ai-session/dispatch|                          |
-   |--------------------------&gt;|--Messenger dispatch------&gt;|  (durable queue)
-   |  SSE: "Queuing session"   |                          |  proc_open(pi.dev, PTY)
-   |&lt;--------------------------|                          |  subscribe SSE: commands
-   |                           |                          |
-   |     SSE: terminal output  |        publish           |
-   |&lt;------------- Mercure ----|&lt;-------------------------|  hub-&gt;publish (sync)
-   |                           |                          |
-   |  POST /input              |                          |
-   |--------------------------&gt;|--publish to commands-----&gt;|--&gt; fwrite(PTY)
-   |                           |  (per-session topic)     |
-   |                           |                          |
-   |  DELETE /ai-session       |                          |
-   |--------------------------&gt;|--publish "close"---------&gt;|--&gt; proc_terminate
-   |     SSE: "Session ended"  |        publish           |
-   |&lt;------------- Mercure ----|&lt;-------------------------|</div>
+        <h3 style="margin-top: 2.5rem; margin-bottom: 0.5rem;">Rewriting Chat Flow</h3>
+        <p>The chat lives inline on the recording page. There is one <code>AiSession</code> per (user, recording) and a child <code>AiMessage</code> per turn. When the user posts a message, the same HTTP request persists it, calls the AI provider, and publishes deltas to a per-session Mercure topic as they arrive. The browser subscribes to that topic and stitches deltas onto the assistant bubble in real time. <code>ignore_user_abort(true)</code> ensures the assistant message gets persisted even if the browser closes mid-stream.</p>
+        <div class="flow-diagram">Browser                    Web Container                 AI Provider
+   |                           |                              |
+   |  EventSource: ai-session  |                              |
+   |--------------------------&gt;|                              |
+   |                           |                              |
+   |  POST /messages {content} |                              |
+   |--------------------------&gt;| persist user AiMessage       |
+   |                           |--publish "user" event ---&gt;|
+   |  SSE: user message echo   |                              |
+   |&lt;------------- Mercure ----|                              |
+   |                           |                              |
+   |                           | persist empty assistant msg  |
+   |                           |---------- streamCompletion --&gt;|
+   |                           |                              |
+   |    SSE: "delta" tokens    |&lt;---- token chunks -----------|
+   |&lt;------------- Mercure ----|--publish per chunk ---&gt;|
+   |                           |                              |
+   |                           | save assistant content        |
+   |    SSE: "done"            |--publish ---&gt;|
+   |&lt;------------- Mercure ----|                              |
+   |  204 No Content           |                              |
+   |&lt;--------------------------|                              |</div>
     </section>
 
     <!-- ===== WHEN TO SCALE ===== -->
@@ -495,16 +491,10 @@
                         <td>High message volume, need dead-letter queues, priority routing</td>
                     </tr>
                     <tr>
-                        <td>Session input delivery</td>
-                        <td>Mercure publish/subscribe (per-session topic)</td>
-                        <td>FrankenPHP shared memory, or Redis Pub/Sub</td>
-                        <td>FrankenPHP migration (planned), or very high message rate per session</td>
-                    </tr>
-                    <tr>
-                        <td>Concurrent AI sessions</td>
-                        <td>One PHP process per session (Messenger worker)</td>
-                        <td>FrankenPHP worker mode (single process)</td>
-                        <td>Memory pressure from many concurrent sessions (~30-50 MB each)</td>
+                        <td>Concurrent rewriting chats</td>
+                        <td>PHP-FPM worker held during the AI stream</td>
+                        <td>FrankenPHP worker mode</td>
+                        <td>FPM worker pool exhausted under heavy concurrent chat load &mdash; FrankenPHP keeps the same worker available across requests</td>
                     </tr>
                     <tr>
                         <td>Full-text search</td>
@@ -531,32 +521,37 @@
 
     <!-- ===== DESIGN DECISION ===== -->
     <section class="section">
-        <h2>Why One Process per AI Session</h2>
-        <p>We tried running all AI sessions in a single daemon process using a Revolt event loop and Mercure for all IPC. It didn't work well. Here's what happened and why we switched.</p>
+        <h2>Why Display, Not Execute</h2>
+        <p>An earlier iteration ran a full coding agent (pi.dev) inside a browser-side terminal &mdash; PTY forwarding, bubblewrap sandboxing, a dedicated worker container, the works. It was the wrong shape for what users actually want here.</p>
 
         <div class="component-grid">
 
             <div class="component">
                 <div class="component-header">
-                    <h3>The single-daemon approach</h3>
+                    <h3>What the user wants</h3>
                 </div>
-                <p>The idea was clean: one long-running PHP process subscribes to Mercure for commands, manages all pi.dev subprocesses concurrently via a Revolt event loop, and publishes output back through Mercure. One process, no matter how many sessions.</p>
-                <p>In practice, it was fragile. PHP's HTTP tools can't stream Mercure events properly, so we had to manage raw TCP sockets by hand. Symfony's HTTP client couldn't publish output without blocking the event loop (curl_multi is never polled inside Revolt). Every workaround introduced new failure modes: silent connection drops, stalled publishes, sessions that stopped responding after a few minutes with no error.</p>
+                <p>The job is "rewrite this transcript" &mdash; tighten it, remove filler, restructure, summarize. Not "execute commands on a sandbox," not "research the web," not "build software." Once you accept that, almost everything else simplifies.</p>
             </div>
 
             <div class="component">
                 <div class="component-header">
-                    <h3>The one-process-per-session approach</h3>
+                    <h3>The chat is just text</h3>
                 </div>
-                <p>Each AI session now gets its own PHP process, dispatched via Symfony Messenger. The process runs a simple <code>stream_select</code> loop: read PTY output, publish to Mercure (synchronous, which is fine since there's only one session), and listen for input via SSE. When the session ends, the process exits.</p>
-                <p>This is simpler and more reliable. Synchronous code works correctly. A crash only affects one session. There's no shared state between sessions. The trade-off is memory: each session costs one PHP process (~30-50 MB). At our current scale this is fine.</p>
+                <p>Replies arrive as token deltas, get persisted to <code>ai_message</code>, and render as sanitized markdown. The application <em>never executes</em> anything the model produces. That removes the whole sandboxing problem &mdash; no bubblewrap, no per-user filesystem isolation, no PTY multiplexing, no worker container.</p>
             </div>
 
             <div class="component">
                 <div class="component-header">
-                    <h3>What remains hacky</h3>
+                    <h3>One conversation per recording</h3>
                 </div>
-                <p>The per-session process still opens a raw TCP socket to subscribe to Mercure SSE for receiving user input. PHP's built-in HTTP tools buffer events instead of delivering them as they arrive, so we have to parse the event stream manually. This is the one piece of complexity that carries over from the daemon approach.</p>
+                <p>Each (user, recording) pair maps to exactly one persisted <code>AiSession</code>. Reload the page and you get the same thread back; open it in another tab and Mercure keeps both views in sync. No session list, no "+ New conversation" UI, no session lifecycle states &mdash; the data model becomes a parent row plus an ordered list of messages.</p>
+            </div>
+
+            <div class="component">
+                <div class="component-header">
+                    <h3>What we removed</h3>
+                </div>
+                <p>The <code>ai-session</code> Messenger transport, the dedicated worker container, the pi.dev binary, the bubblewrap install, the xterm.js terminal, the Revolt event loop dependency, two HTTP control endpoints, and a full second page in the routing tree. The schema lost a status enum and a <code>closed_at</code> column.</p>
             </div>
 
         </div>
@@ -640,36 +635,29 @@
     <!-- ===== FRANKENPHP ===== -->
     <section class="section">
         <h2>FrankenPHP Migration Path</h2>
-        <p>FrankenPHP is a modern PHP application server that keeps processes alive between requests and embeds Mercure directly. Migrating to it would remove the remaining hacks. This migration is planned and coming soon.</p>
+        <p>The chat handler holds a PHP-FPM worker for the duration of an AI completion (typically a few seconds, occasionally tens of seconds for long replies). At low concurrency this is fine. Under sustained load it becomes the scaling pinch point. FrankenPHP &mdash; a modern PHP application server that keeps processes alive across requests and embeds Mercure directly &mdash; is the planned escape hatch.</p>
 
         <div class="component-grid">
 
             <div class="component">
                 <div class="component-header">
-                    <h3>Built-in real-time events</h3>
+                    <h3>Better worker utilization</h3>
                 </div>
-                <p>FrankenPHP includes Mercure natively. The raw TCP socket for receiving input commands gets replaced by a simple API call. No manual HTTP parsing, no reconnection logic.</p>
+                <p>FrankenPHP's worker mode keeps a single warm process serving many requests, so a slow streaming reply doesn't tie up an entire FPM child for its lifetime. Concurrent chats cost less.</p>
             </div>
 
             <div class="component">
                 <div class="component-header">
-                    <h3>Direct communication, no network hops</h3>
+                    <h3>Embedded Mercure</h3>
                 </div>
-                <p>With FrankenPHP's worker mode, input commands can go directly from the web request to the session process through shared memory instead of traveling over the network via Mercure. This removes a full round-trip for every keystroke.</p>
-            </div>
-
-            <div class="component">
-                <div class="component-header">
-                    <h3>Instant publishing to browsers</h3>
-                </div>
-                <p>Publishing AI output to the user's browser becomes an in-process call to the embedded Mercure hub. No HTTP overhead, no connection management &mdash; output goes straight to the user's screen.</p>
+                <p>Publishing chat token deltas becomes an in-process call to a built-in Mercure hub instead of an HTTP round-trip to a separate service. Lower latency per token, fewer moving parts in deployment.</p>
             </div>
 
             <div class="component">
                 <div class="component-header">
                     <h3>Simpler deployment</h3>
                 </div>
-                <p>Today we run a web server, a transcription worker, an AI session worker, and a standalone Mercure service. With FrankenPHP, the web server absorbs Mercure and can manage session processes directly, reducing moving parts.</p>
+                <p>Today we run a web server, a transcription worker, and a standalone Mercure service. With FrankenPHP, the web server absorbs Mercure, leaving the transcription worker as the only sidecar.</p>
             </div>
 
         </div>

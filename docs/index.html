@@ -314,7 +314,7 @@
 
 <div class="hero">
     <h1>Braindump</h1>
-    <p class="tagline">Not a quick voice memo app. Braindump is for the longer stuff &mdash; the 5-minute architecture walkthrough, the 15-minute problem deep-dive. Dump your brain, get it transcribed, then think through it with an AI coding agent.</p>
+    <p class="tagline">Not a quick voice memo app. Braindump is for the longer stuff &mdash; the 5-minute architecture walkthrough, the 15-minute problem deep-dive. Dump your brain, get it transcribed, then refine it with an inline AI rewriting chat.</p>
     <a href="https://github.com/ralt/braindump" class="cta">View on GitHub</a>
     <a href="architecture.html" class="cta" style="margin-left: 0.75rem; background: transparent; color: var(--accent); border: 2px solid var(--accent);">Architecture</a>
 </div>
@@ -341,8 +341,8 @@
             </div>
             <div class="step">
                 <div class="number">4</div>
-                <h3>Think with AI</h3>
-                <p>Start an interactive AI session via pi.dev. Pick your provider &mdash; Anthropic, OpenAI, Google, and more. The agent reads your transcription and helps you work through it.</p>
+                <h3>Refine with AI</h3>
+                <p>Below the transcript, an AI assistant locked to rewriting/editing streams suggestions inline. Iterate via text or a quick voice button. Pick your provider &mdash; Anthropic, OpenAI, Google, and more.</p>
             </div>
         </div>
     </section>
@@ -363,8 +363,8 @@
                 <p>PostgreSQL full-text search with weighted ranking (title matches rank higher). Optional OpenSearch backend for larger deployments.</p>
             </div>
             <div class="feature">
-                <h3>AI Sessions (pi.dev)</h3>
-                <p>Interactive terminal in the browser via xterm.js. The AI agent reads your transcription and you chat with it live. Supports Anthropic, OpenAI, Google, Groq, Mistral, DeepSeek, xAI, and OpenRouter. Each user brings their own API key, stored encrypted via Vault KMS.</p>
+                <h3>Inline Rewriting Chat</h3>
+                <p>The transcript becomes the first message to a writing assistant locked to rewriting/editing &mdash; no shells, no execution, just text. Replies stream live over Mercure (every open tab sees the same deltas), markdown is rendered safely, and history persists across reloads. Voice input button with a mic device picker for quick refinements. Supports Anthropic, OpenAI, Google, Groq, Mistral, DeepSeek, xAI, and OpenRouter; each user brings their own API key, stored encrypted via Vault KMS.</p>
             </div>
             <div class="feature">
                 <h3>Enterprise-Ready Auth</h3>
@@ -386,7 +386,7 @@
             </div>
             <div class="arch-card">
                 <h3>Mercure for Live Updates</h3>
-                <p>AI sessions are long-lived and interactive. Mercure handles persistent SSE connections with async I/O, so hundreds of sessions don't exhaust PHP workers.</p>
+                <p>Transcription status updates and rewriting-chat token deltas are published to per-resource topics. Browsers subscribe via SSE; PHP-FPM never holds the long-lived connection itself, so the app stays responsive.</p>
             </div>
             <div class="arch-card">
                 <h3>Shared Network Storage</h3>
@@ -401,8 +401,8 @@
                 <p>User API keys are encrypted at rest via Upsun's managed Vault KMS transit encryption. The encryption key never leaves the vault.</p>
             </div>
             <div class="arch-card">
-                <h3>Bubblewrap for Session Isolation</h3>
-                <p>Each pi.dev session runs inside a bubblewrap sandbox with Linux namespaces. Users get their own isolated filesystem view &mdash; they can't see other users' data, temp files, or processes. The rest of the system is read-only.</p>
+                <h3>Display, Don't Execute</h3>
+                <p>The AI is locked to rewriting via a server-side system prompt. The app never runs anything it produces &mdash; replies are rendered as sanitized markdown (marked + DOMPurify). No shells, no tools, no eval.</p>
             </div>
         </div>
     </section>
@@ -420,8 +420,7 @@
             <span class="tech-badge">EasyAdmin</span>
             <span class="tech-badge">Stimulus</span>
             <span class="tech-badge">Turbo</span>
-            <span class="tech-badge">xterm.js</span>
-            <span class="tech-badge">pi.dev</span>
+            <span class="tech-badge">marked + DOMPurify</span>
             <span class="tech-badge">Vault KMS</span>
             <span class="tech-badge">Upsun</span>
         </div>
@@ -436,7 +435,7 @@
             </div>
             <div class="setup-step">
                 <h3>Install</h3>
-                <div class="code-block"><span class="cmd">git clone</span> https://github.com/ralt/braindump<br><span class="cmd">cd</span> braindump && <span class="cmd">composer install</span><br><span class="cmd">npm install -g</span> @mariozechner/pi-coding-agent</div>
+                <div class="code-block"><span class="cmd">git clone</span> https://github.com/ralt/braindump<br><span class="cmd">cd</span> braindump && <span class="cmd">composer install</span></div>
             </div>
             <div class="setup-step">
                 <h3>Configure</h3>
@@ -449,7 +448,7 @@
             </div>
             <div class="setup-step">
                 <h3>Run</h3>
-                <div class="code-block"><span class="comment"># Web server</span><br><span class="cmd">symfony server:start</span><br><br><span class="comment"># Local Mercure hub</span><br><span class="cmd">./mercure run</span> --config Caddyfile.mercure --adapter caddyfile<br><br><span class="comment"># Transcription worker</span><br><span class="cmd">php bin/console</span> messenger:consume async --sleep=60<br><br><span class="comment"># AI session worker</span><br><span class="cmd">php bin/console</span> messenger:consume ai-session --sleep=60</div>
+                <div class="code-block"><span class="comment"># Web server</span><br><span class="cmd">symfony server:start</span><br><br><span class="comment"># Local Mercure hub</span><br><span class="cmd">./mercure run</span> --config Caddyfile.mercure --adapter caddyfile<br><br><span class="comment"># Transcription worker</span><br><span class="cmd">php bin/console</span> messenger:consume async --sleep=60</div>
                 <p>Or deploy to Upsun: <code>upsun push</code></p>
             </div>
         </div>
