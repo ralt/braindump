@@ -2,8 +2,9 @@
 
 namespace App\Entity;
 
-use App\Enum\AiSessionStatus;
 use App\Repository\AiSessionRepository;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Bridge\Doctrine\Types\UuidType;
 use Symfony\Component\Uid\Uuid;
@@ -23,21 +24,22 @@ class AiSession
     #[ORM\JoinColumn(nullable: false)]
     private User $user;
 
-    #[ORM\Column(type: 'string', length: 20, enumType: AiSessionStatus::class)]
-    private AiSessionStatus $status = AiSessionStatus::Starting;
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $title = null;
 
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
-    #[ORM\Column(nullable: true)]
-    private ?\DateTimeImmutable $closedAt = null;
-
-
+    /** @var Collection<int, AiMessage> */
+    #[ORM\OneToMany(targetEntity: AiMessage::class, mappedBy: 'session', cascade: ['persist', 'remove'], orphanRemoval: true)]
+    #[ORM\OrderBy(['createdAt' => 'ASC'])]
+    private Collection $messages;
 
     public function __construct()
     {
         $this->id = Uuid::v7();
         $this->createdAt = new \DateTimeImmutable();
+        $this->messages = new ArrayCollection();
     }
 
     public function getId(): Uuid
@@ -67,14 +69,14 @@ class AiSession
         return $this;
     }
 
-    public function getStatus(): AiSessionStatus
+    public function getTitle(): ?string
     {
-        return $this->status;
+        return $this->title;
     }
 
-    public function setStatus(AiSessionStatus $status): static
+    public function setTitle(?string $title): static
     {
-        $this->status = $status;
+        $this->title = $title;
         return $this;
     }
 
@@ -83,14 +85,18 @@ class AiSession
         return $this->createdAt;
     }
 
-    public function getClosedAt(): ?\DateTimeImmutable
+    /** @return Collection<int, AiMessage> */
+    public function getMessages(): Collection
     {
-        return $this->closedAt;
+        return $this->messages;
     }
 
-    public function setClosedAt(?\DateTimeImmutable $closedAt): static
+    public function addMessage(AiMessage $message): static
     {
-        $this->closedAt = $closedAt;
+        if (!$this->messages->contains($message)) {
+            $this->messages->add($message);
+            $message->setSession($this);
+        }
         return $this;
     }
 }

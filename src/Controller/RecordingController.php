@@ -2,13 +2,17 @@
 
 namespace App\Controller;
 
+use App\Entity\AiSession;
 use App\Entity\Recording;
 use App\Entity\User;
 use App\Enum\RecordingStatus;
 use App\Message\TranscribeRecordingMessage;
+use App\Repository\AiSessionRepository;
 use App\Repository\RecordingRepository;
 use App\Search\SearchProviderInterface;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\AI\Platform\Message\Content\Audio;
+use Symfony\AI\Platform\PlatformInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -23,10 +27,12 @@ class RecordingController extends AbstractController
 {
     public function __construct(
         private RecordingRepository $recordingRepository,
+        private AiSessionRepository $aiSessionRepository,
         private EntityManagerInterface $em,
         private MessageBusInterface $bus,
         private SearchProviderInterface $searchProvider,
         private Authorization $mercureAuthorization,
+        private PlatformInterface $aiPlatform,
         private string $audioStoragePath,
     ) {}
 
@@ -60,11 +66,38 @@ class RecordingController extends AbstractController
     {
         $this->denyAccessUnlessGranted('RECORDING_VIEW', $recording);
 
-        // Set Mercure authorization cookie for real-time transcription updates
+        // Set Mercure authorization cookie for real-time transcription + chat updates
         $this->mercureAuthorization->setCookie($request, ['*']);
+
+        /** @var User|null $user */
+        $user = $this->getUser();
+
+        $aiSession = null;
+        $autoFirstMessage = null;
+        $aiAvailable = $user !== null
+            && $user->getEncryptedAiApiKey() !== null
+            && $recording->getStatus() === RecordingStatus::Completed
+            && $this->isGranted('RECORDING_AI_SESSION', $recording);
+
+        if ($aiAvailable) {
+            $aiSession = $this->aiSessionRepository->findOneByRecordingForUser($recording, $user);
+            if ($aiSession === null) {
+                $aiSession = (new AiSession())
+                    ->setRecording($recording)
+                    ->setUser($user);
+                $this->em->persist($aiSession);
+                $this->em->flush();
+            }
+
+            if ($aiSession->getMessages()->isEmpty() && $recording->getTranscription()) {
+                $autoFirstMessage = $recording->getTranscription();
+            }
+        }
 
         return $this->render('recording/show.html.twig', [
             'recording' => $recording,
+            'aiSession' => $aiSession,
+            'autoFirstMessage' => $autoFirstMessage,
         ]);
     }
 
@@ -169,5 +202,38 @@ class RecordingController extends AbstractController
             'transcription' => $recording->getTranscription(),
             'errorMessage' => $recording->getErrorMessage(),
         ]);
+    }
+
+    #[Route('/api/transcribe', name: 'api_transcribe', methods: ['POST'])]
+    public function transcribe(Request $request): JsonResponse
+    {
+        /** @var UploadedFile|null $audioFile */
+        $audioFile = $request->files->get('audio');
+        if ($audioFile === null) {
+            return $this->json(['error' => 'No audio file provided'], Response::HTTP_BAD_REQUEST);
+        }
+
+        if ($audioFile->getSize() > 5 * 1024 * 1024) {
+            return $this->json(['error' => 'Voice clip too large (max 5MB)'], Response::HTTP_BAD_REQUEST);
+        }
+
+        // Whisper resolves the audio format from the file extension; the raw upload tmp path has none.
+        $ext = $audioFile->guessExtension() ?: 'webm';
+        $tmpDir = sys_get_temp_dir();
+        $tmpName = 'transcribe_' . uniqid('', true) . '.' . $ext;
+        $audioFile->move($tmpDir, $tmpName);
+        $tmpPath = $tmpDir . '/' . $tmpName;
+
+        try {
+            $audio = Audio::fromFile($tmpPath);
+            $result = $this->aiPlatform->invoke('whisper-1', $audio);
+            $text = $result->asText();
+        } catch (\Throwable $e) {
+            @unlink($tmpPath);
+            return $this->json(['error' => 'Transcription failed: ' . $e->getMessage()], Response::HTTP_BAD_GATEWAY);
+        }
+
+        @unlink($tmpPath);
+        return $this->json(['text' => $text]);
     }
 }

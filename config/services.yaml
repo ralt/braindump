@@ -41,11 +41,6 @@ services:
     App\Search\SearchProviderInterface:
         factory: ['@App\Search\SearchProviderFactory', 'create']
 
-    App\MessageHandler\StartAiSessionHandler:
-        arguments:
-            $mercureUrl: '%env(MERCURE_URL)%'
-            $mercureJwtSecret: '%env(MERCURE_JWT_SECRET)%'
-
     App\Command\CiRunCommand:
         arguments:
             $upsunApiToken: '%env(UPSUN_API_TOKEN)%'

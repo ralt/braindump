@@ -19,8 +19,6 @@ applications:
     dependencies:
       php:
         composer/composer: '^2'
-      nodejs:
-        '@mariozechner/pi-coding-agent': '*'
 
     runtime:
       extensions:
@@ -35,8 +33,6 @@ applications:
     hooks:
       build: |
         set -e
-        curl -fsSL -o ~/.global/bin/bwrap https://github.com/VHSgunzo/bubblewrap-static/releases/download/v0.11.0.2/bwrap-x86_64
-        chmod +x ~/.global/bin/bwrap
         curl -fs https://get.symfony.com/cloud/configurator | bash
         symfony-build
       deploy: symfony-deploy
@@ -87,13 +83,6 @@ applications:
             source: service
             service: audio-storage
             source_path: audio
-
-      ai-session:
-        commands:
-          start: php bin/console messenger:consume ai-session --time-limit=7200 --memory-limit=256M
-        mounts:
-          '/var': { source: storage, source_path: var }
-          '/.pi': { source: storage, source_path: pi }
 
     crons:
       weekly_ci:

@@ -25,14 +25,10 @@ return [
     '@hotwired/turbo' => [
         'version' => '7.3.0',
     ],
-    'xterm' => [
-        'version' => '5.3.0',
+    'marked' => [
+        'version' => '18.0.3',
     ],
-    '@xterm/addon-fit' => [
-        'version' => '0.11.0',
-    ],
-    'xterm/css/xterm.min.css' => [
-        'version' => '5.3.0',
-        'type' => 'css',
+    'dompurify' => [
+        'version' => '3.4.2',
     ],
 ];

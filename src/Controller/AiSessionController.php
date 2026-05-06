@@ -2,190 +2,132 @@
 
 namespace App\Controller;
 
+use App\Entity\AiMessage;
 use App\Entity\AiSession;
-use App\Entity\Recording;
 use App\Entity\User;
-use App\Enum\AiSessionStatus;
-use App\Message\StartAiSessionMessage;
+use App\Enum\AiMessageRole;
+use App\Service\AiChatClient\AiChatClientFactory;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\Mercure\Authorization;
 use Symfony\Component\Mercure\HubInterface;
 use Symfony\Component\Mercure\Update;
-use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Attribute\Route;
 
 class AiSessionController extends AbstractController
 {
+    private const SYSTEM_PROMPT = <<<'PROMPT'
+        You are a writing assistant. The user has recorded speech that has been transcribed. They will ask you to rewrite, edit, restructure, summarize, reformat, or otherwise transform the text. Your only job is to produce rewritten text. Do not answer questions outside the writing task, do not browse the web, do not execute code, and do not perform research. If the user asks for something outside rewriting/editing, briefly redirect them back to the writing task.
+        PROMPT;
+
     public function __construct(
         private EntityManagerInterface $em,
-        private Authorization $mercureAuthorization,
         private HubInterface $hub,
-        private MessageBusInterface $bus,
+        private AiChatClientFactory $chatClientFactory,
     ) {}
 
-    #[Route('/recordings/{id}/ai-session', name: 'app_ai_session')]
-    public function show(Recording $recording, Request $request): Response
+    #[Route('/api/ai-sessions/{id}/messages', name: 'api_ai_session_message', methods: ['POST'])]
+    public function postMessage(AiSession $session, Request $request): Response
     {
-        $this->denyAccessUnlessGranted('RECORDING_AI_SESSION', $recording);
-
-        /** @var User $user */
-        $user = $this->getUser();
-
-        if ($user->getEncryptedAiApiKey() === null) {
-            $this->addFlash('error', 'Please configure your AI provider API key in Settings before starting a session.');
-            return $this->redirectToRoute('app_user_settings');
-        }
-
-        // Set Mercure authorization cookie so the browser can subscribe
-        $this->mercureAuthorization->setCookie($request, ['*']);
-
-        return $this->render('recording/ai_session.html.twig', [
-            'recording' => $recording,
-        ]);
-    }
-
-    #[Route('/api/recordings/{id}/ai-session', name: 'api_ai_session_start', methods: ['POST'])]
-    public function start(Recording $recording): JsonResponse
-    {
-        $this->denyAccessUnlessGranted('RECORDING_AI_SESSION', $recording);
-
-        /** @var User $user */
-        $user = $this->getUser();
-
-        if ($user->getEncryptedAiApiKey() === null) {
-            return $this->json(['error' => 'AI provider API key not configured'], Response::HTTP_BAD_REQUEST);
-        }
-
-        // Prevent duplicate sessions — only consider sessions created in the last 5 minutes
-        $cutoff = new \DateTimeImmutable('-5 minutes');
-        $existing = $this->em->createQueryBuilder()
-            ->select('s')
-            ->from(AiSession::class, 's')
-            ->where('s.recording = :recording')
-            ->andWhere('s.user = :user')
-            ->andWhere('s.status IN (:statuses)')
-            ->andWhere('s.createdAt > :cutoff')
-            ->setParameter('recording', $recording)
-            ->setParameter('user', $user)
-            ->setParameter('statuses', [AiSessionStatus::Starting, AiSessionStatus::Running])
-            ->setParameter('cutoff', $cutoff)
-            ->setMaxResults(1)
-            ->getQuery()
-            ->getOneOrNullResult();
-
-        if ($existing) {
-            return $this->json([
-                'sessionId' => $existing->getId(),
-                'mercureTopic' => 'ai-session/' . $existing->getId(),
-                'status' => $existing->getStatus()->value,
-            ]);
-        }
-
-        // Close any stale starting/running sessions
-        $this->em->createQueryBuilder()
-            ->update(AiSession::class, 's')
-            ->set('s.status', ':closed')
-            ->set('s.closedAt', ':now')
-            ->where('s.recording = :recording')
-            ->andWhere('s.user = :user')
-            ->andWhere('s.status IN (:statuses)')
-            ->setParameter('closed', AiSessionStatus::Closed)
-            ->setParameter('now', new \DateTimeImmutable())
-            ->setParameter('recording', $recording)
-            ->setParameter('user', $user)
-            ->setParameter('statuses', [AiSessionStatus::Starting, AiSessionStatus::Running])
-            ->getQuery()
-            ->execute();
-
-        $session = new AiSession();
-        $session->setRecording($recording);
-        $session->setUser($user);
-        $session->setStatus(AiSessionStatus::Starting);
-
-        $this->em->persist($session);
-        $this->em->flush();
-
-        return $this->json([
-            'sessionId' => $session->getId(),
-            'mercureTopic' => 'ai-session/' . $session->getId(),
-        ], Response::HTTP_CREATED);
-    }
-
-    #[Route('/api/ai-sessions/{id}/dispatch', name: 'api_ai_session_dispatch', methods: ['POST'])]
-    public function dispatch(AiSession $session): JsonResponse
-    {
-        /** @var User $user */
-        $user = $this->getUser();
-
-        if (!$session->getUser()->getId()->equals($user->getId())) {
-            throw $this->createAccessDeniedException();
-        }
-
-        if ($session->getStatus() !== AiSessionStatus::Starting) {
-            return $this->json(['error' => 'Session already dispatched'], Response::HTTP_CONFLICT);
-        }
-
-        // Immediate feedback while the worker picks up the message
-        $topic = 'ai-session/' . $session->getId();
-        $this->hub->publish(new Update($topic, json_encode(['output' => "Queuing session...\r\n"])));
-
-        $this->bus->dispatch(new StartAiSessionMessage(
-            sessionId: (string) $session->getId(),
-            recordingId: (string) $session->getRecording()->getId(),
-            userId: (string) $user->getId(),
-        ));
-
-        return $this->json(['ok' => true]);
-    }
-
-    #[Route('/api/ai-sessions/{id}/status', name: 'api_ai_session_status', methods: ['GET'])]
-    public function status(AiSession $session): JsonResponse
-    {
-        return $this->json([
-            'status' => $session->getStatus()->value,
-        ]);
-    }
-
-    #[Route('/api/ai-sessions/{id}/input', name: 'api_ai_session_input', methods: ['POST'])]
-    public function input(AiSession $session, Request $request): JsonResponse
-    {
-        /** @var User $user */
-        $user = $this->getUser();
-
-        if (!$session->getUser()->getId()->equals($user->getId())) {
-            throw $this->createAccessDeniedException();
-        }
-
-        if ($session->getStatus() !== AiSessionStatus::Running) {
-            return $this->json(['error' => 'Session not ready'], Response::HTTP_SERVICE_UNAVAILABLE);
-        }
+        $this->assertSessionOwner($session);
 
         $data = json_decode($request->getContent(), true);
-        $input = $data['input'] ?? '';
-
-        if ($input === '') {
-            return $this->json(['error' => 'No input provided'], Response::HTTP_BAD_REQUEST);
+        $content = trim((string) ($data['content'] ?? ''));
+        if ($content === '') {
+            return $this->json(['error' => 'Empty message'], Response::HTTP_BAD_REQUEST);
         }
 
-        // Publish to per-session command topic (the handler subscribes to this)
-        $this->hub->publish(new Update(
-            'ai-session/' . $session->getId() . '/commands',
-            json_encode([
-                'type' => 'input',
-                'input' => $input,
-            ]),
-            true
-        ));
+        ignore_user_abort(true);
+        @set_time_limit(0);
+
+        $topic = 'ai-session/' . $session->getId();
+
+        // Capture the existing conversation BEFORE adding the new user message,
+        // so we can build the provider history without depending on collection state.
+        $history = [];
+        foreach ($session->getMessages() as $msg) {
+            $history[] = [
+                'role' => $msg->getRole()->value,
+                'content' => $msg->getContent(),
+            ];
+        }
+        $history[] = ['role' => AiMessageRole::User->value, 'content' => $content];
+
+        $userMessage = (new AiMessage())
+            ->setRole(AiMessageRole::User)
+            ->setContent($content);
+        $session->addMessage($userMessage);
+        $this->em->persist($userMessage);
+        $this->em->flush();
+
+        $this->hub->publish(new Update($topic, json_encode([
+            'type' => 'user',
+            'messageId' => (string) $userMessage->getId(),
+            'content' => $content,
+        ])));
+
+        $assistantMessage = (new AiMessage())
+            ->setRole(AiMessageRole::Assistant)
+            ->setContent('');
+        $session->addMessage($assistantMessage);
+        $this->em->persist($assistantMessage);
+        $this->em->flush();
+        $assistantMessageId = (string) $assistantMessage->getId();
+        $assistantBuffer = '';
+
+        try {
+            [$client, $apiKey] = $this->chatClientFactory->forUser($session->getUser());
+
+            foreach ($client->streamCompletion($apiKey, self::SYSTEM_PROMPT, $history) as $delta) {
+                $assistantBuffer .= $delta;
+                $this->hub->publish(new Update($topic, json_encode([
+                    'type' => 'delta',
+                    'messageId' => $assistantMessageId,
+                    'content' => $delta,
+                ])));
+            }
+        } catch (\Throwable $e) {
+            $this->em->remove($assistantMessage);
+            $this->em->flush();
+            $this->hub->publish(new Update($topic, json_encode([
+                'type' => 'error',
+                'message' => 'AI provider error: ' . $e->getMessage(),
+            ])));
+            return new Response(null, Response::HTTP_NO_CONTENT);
+        }
+
+        if ($assistantBuffer === '') {
+            $this->em->remove($assistantMessage);
+        } else {
+            $assistantMessage->setContent($assistantBuffer);
+        }
+        $this->em->flush();
+
+        $this->hub->publish(new Update($topic, json_encode([
+            'type' => 'done',
+            'messageId' => $assistantMessageId,
+        ])));
+
+        return new Response(null, Response::HTTP_NO_CONTENT);
+    }
+
+    #[Route('/api/ai-sessions/{id}/clear', name: 'api_ai_session_clear', methods: ['POST'])]
+    public function clear(AiSession $session): JsonResponse
+    {
+        $this->assertSessionOwner($session);
+
+        foreach ($session->getMessages()->toArray() as $msg) {
+            $this->em->remove($msg);
+        }
+        $session->getMessages()->clear();
+        $this->em->flush();
 
         return $this->json(['ok' => true]);
     }
 
-    #[Route('/api/ai-sessions/{id}', name: 'api_ai_session_close', methods: ['DELETE'])]
-    public function close(AiSession $session): JsonResponse
+    private function assertSessionOwner(AiSession $session): void
     {
         /** @var User $user */
         $user = $this->getUser();
@@ -193,18 +135,5 @@ class AiSessionController extends AbstractController
         if (!$session->getUser()->getId()->equals($user->getId())) {
             throw $this->createAccessDeniedException();
         }
-
-        // Tell the handler to terminate
-        $this->hub->publish(new Update(
-            'ai-session/' . $session->getId() . '/commands',
-            json_encode(['type' => 'close']),
-            true
-        ));
-
-        $session->setStatus(AiSessionStatus::Closed);
-        $session->setClosedAt(new \DateTimeImmutable());
-        $this->em->flush();
-
-        return $this->json(['ok' => true]);
     }
 }
