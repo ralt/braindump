@@ -5,6 +5,7 @@
 {% block body %}
     <div {{ stimulus_controller('recording-status', {
         statusUrl: path('api_recording_status', {id: recording.id}),
+        contentUrl: path('app_recording_status_content', {id: recording.id}),
         status: recording.status.value,
         mercureUrl: recording.status.value in ['pending', 'transcribing'] ? mercurePublicUrl ~ '?topic=' ~ ('recording/' ~ recording.id)|url_encode : ''
     }) }}>
@@ -36,74 +37,9 @@
         </div>
     </div>
 
-    {% if recording.status.value == 'completed' and recording.transcription %}
-        {% if not aiSession %}
-            <div class="card">
-                <h2 class="mb-1">Transcription</h2>
-                <div class="transcription-text">{{ recording.transcription }}</div>
-            </div>
-        {% endif %}
-
-        {% if aiSession %}
-            <div class="card chat-card"
-                 {{ stimulus_controller('ai-chat', {
-                     sessionId: aiSession.id.toRfc4122,
-                     messagesUrl: path('api_ai_session_message', {id: aiSession.id}),
-                     mercureUrl: mercurePublicUrl ~ '?topic=' ~ ('ai-session/' ~ aiSession.id)|url_encode,
-                     autoFirstMessage: autoFirstMessage|default(''),
-                     clearUrl: path('api_ai_session_clear', {id: aiSession.id})
-                 }) }}>
-                <div class="chat-header flex flex-between flex-center">
-                    <span>Rewriting assistant</span>
-                    <button type="button" class="btn btn-secondary btn-sm" {{ stimulus_action('ai-chat', 'clear') }}>Clear conversation</button>
-                </div>
-                <div class="chat-messages" {{ stimulus_target('ai-chat', 'messages') }}>
-                    {% for message in aiSession.messages %}
-                        <div class="chat-bubble {{ message.role.value }}" data-message-id="{{ message.id.toRfc4122 }}">
-                            <div class="chat-bubble-role">{{ message.role.value }}</div>
-                            <div class="chat-bubble-body">{{ message.content }}</div>
-                        </div>
-                    {% endfor %}
-                </div>
-                <form class="chat-input-bar"
-                      {{ stimulus_controller('chat-mic', {
-                          transcribeUrl: path('api_transcribe'),
-                          maxSeconds: 30
-                      }) }}
-                      {{ stimulus_action('ai-chat', 'send', 'submit') }}>
-                    <select class="chat-mic-device"
-                            title="Microphone"
-                            {{ stimulus_target('chat-mic', 'device') }}
-                            {{ stimulus_action('chat-mic', 'onDeviceChange', 'change') }}></select>
-                    <button type="button" class="chat-mic-btn"
-                            title="Record voice (max 30s)"
-                            {{ stimulus_target('chat-mic', 'button') }}
-                            {{ stimulus_action('chat-mic', 'toggle') }}>🎤</button>
-                    <textarea {{ stimulus_target('ai-chat', 'input') }}
-                              {{ stimulus_target('chat-mic', 'output') }}
-                              rows="1"
-                              placeholder="Ask the assistant to rewrite, edit, summarize..."></textarea>
-                    <button type="submit" class="chat-send-btn" {{ stimulus_target('ai-chat', 'send') }}>Send</button>
-                </form>
-            </div>
-        {% endif %}
-    {% elseif recording.status.value == 'failed' %}
-        <div class="card">
-            <div class="alert alert-error">
-                <strong>Transcription failed:</strong> {{ recording.errorMessage }}
-            </div>
-            {% if is_granted('RECORDING_EDIT', recording) %}
-                <form method="post" action="{{ path('api_recording_retry', {id: recording.id}) }}" class="mt-1">
-                    <input type="hidden" name="_token" value="{{ csrf_token('retry') }}">
-                    <button type="submit" class="btn btn-primary">Retry Transcription</button>
-                </form>
-            {% endif %}
-        </div>
-    {% elseif recording.status.value in ['pending', 'transcribing'] %}
-        <div class="card" {{ stimulus_target('recording-status', 'transcriptionArea') }}>
-            <p class="text-muted text-center p-section">Transcription in progress...</p>
-        </div>
-    {% endif %}
+    <div {{ stimulus_target('recording-status', 'content') }}>
+        {{ include('recording/_status_content.html.twig') }}
+    </div>
 
     {% if recording.shares|length > 0 %}
         <div class="card card-flush">

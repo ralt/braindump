@@ -4,8 +4,10 @@ namespace App\Controller;
 
 use App\Entity\AiMessage;
 use App\Entity\AiSession;
+use App\Entity\Recording;
 use App\Entity\User;
 use App\Enum\AiMessageRole;
+use App\Repository\AiSessionRepository;
 use App\Service\AiChatClient\AiChatClientFactory;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -26,7 +28,43 @@ class AiSessionController extends AbstractController
         private EntityManagerInterface $em,
         private HubInterface $hub,
         private AiChatClientFactory $chatClientFactory,
+        private AiSessionRepository $sessions,
     ) {}
+
+    #[Route('/api/recordings/{id}/ai-chat/start', name: 'api_ai_chat_start', methods: ['POST'])]
+    public function startChat(Recording $recording): JsonResponse
+    {
+        $this->denyAccessUnlessGranted('RECORDING_AI_SESSION', $recording);
+
+        /** @var User $user */
+        $user = $this->getUser();
+
+        if ($user->getEncryptedAiApiKey() === null) {
+            return $this->json(['error' => 'AI provider API key not configured'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $session = $this->sessions->findOneByRecordingForUser($recording, $user);
+        if ($session === null) {
+            $session = (new AiSession())
+                ->setRecording($recording)
+                ->setUser($user);
+            $this->em->persist($session);
+            $this->em->flush();
+        }
+
+        // Render the chat card so the client can swap it in-place. autoFirstMessage
+        // carries the transcript so the chat controller fires the first turn on connect.
+        $html = $this->renderView('recording/_chat_card.html.twig', [
+            'aiSession' => $session,
+            'messages' => $session->getMessages(),
+            'autoFirstMessage' => $recording->getTranscription() ?? '',
+        ]);
+
+        return $this->json([
+            'sessionId' => (string) $session->getId(),
+            'html' => $html,
+        ]);
+    }
 
     #[Route('/api/ai-sessions/{id}/messages', name: 'api_ai_session_message', methods: ['POST'])]
     public function postMessage(AiSession $session, Request $request): Response
@@ -118,10 +156,9 @@ class AiSessionController extends AbstractController
     {
         $this->assertSessionOwner($session);
 
-        foreach ($session->getMessages()->toArray() as $msg) {
-            $this->em->remove($msg);
-        }
-        $session->getMessages()->clear();
+        // Drop the whole session (cascades to messages) so the recording page falls
+        // back to the "Start AI chat" button on reload — no half-empty placeholder.
+        $this->em->remove($session);
         $this->em->flush();
 
         return $this->json(['ok' => true]);

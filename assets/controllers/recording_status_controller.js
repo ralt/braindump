@@ -1,9 +1,10 @@
 import { Controller } from '@hotwired/stimulus'
 
 export default class extends Controller {
-    static targets = ['badge', 'transcriptionArea', 'aiSessionButton']
+    static targets = ['badge', 'content']
     static values = {
         statusUrl: String,
+        contentUrl: String,
         status: String,
         mercureUrl: String,
     }
@@ -26,15 +27,13 @@ export default class extends Controller {
 
             if (data.status && data.status !== this.statusValue) {
                 this.statusValue = data.status
-                this.badgeTarget.textContent = data.status
-                this.badgeTarget.className = `badge badge-${data.status}`
-
-                if (data.status === 'completed' && data.transcription) {
-                    this.showTranscription(data.transcription)
-                    this.enableAiSessionButton()
+                if (this.hasBadgeTarget) {
+                    this.badgeTarget.textContent = data.status
+                    this.badgeTarget.className = `badge badge-${data.status}`
+                }
+                this.refreshContent()
+                if (data.status === 'completed' || data.status === 'failed') {
                     this.close()
-                } else if (data.status === 'failed') {
-                    window.location.reload()
                 }
             }
         }
@@ -46,26 +45,16 @@ export default class extends Controller {
         }
     }
 
-    showTranscription(text) {
-        if (!this.hasTranscriptionAreaTarget) return
-
-        this.transcriptionAreaTarget.innerHTML =
-            '<h2 class="mb-1">Transcription</h2>' +
-            '<div class="transcription-text">' + this.escapeHtml(text) + '</div>'
-        this.transcriptionAreaTarget.className = 'card'
-    }
-
-    enableAiSessionButton() {
-        if (!this.hasAiSessionButtonTarget) return
-
-        this.aiSessionButtonTarget.classList.remove('btn-disabled')
-        this.aiSessionButtonTarget.removeAttribute('aria-disabled')
-    }
-
-    escapeHtml(text) {
-        const div = document.createElement('div')
-        div.textContent = text
-        return div.innerHTML
+    async refreshContent() {
+        if (!this.hasContentTarget || !this.contentUrlValue) return
+        try {
+            const response = await fetch(this.contentUrlValue)
+            if (response.ok) {
+                this.contentTarget.innerHTML = await response.text()
+            }
+        } catch {
+            // ignore — user can refresh manually if needed
+        }
     }
 
     async fallbackPoll() {
@@ -73,14 +62,19 @@ export default class extends Controller {
             const response = await fetch(this.statusUrlValue)
             const data = await response.json()
 
-            if (data.status === 'completed' || data.status === 'failed') {
-                window.location.reload()
-            } else {
-                // Still in progress, try SSE again
+            if (data.status !== this.statusValue) {
+                this.statusValue = data.status
+                if (this.hasBadgeTarget) {
+                    this.badgeTarget.textContent = data.status
+                    this.badgeTarget.className = `badge badge-${data.status}`
+                }
+                this.refreshContent()
+            }
+
+            if (data.status !== 'completed' && data.status !== 'failed') {
                 this.subscribe()
             }
         } catch {
-            // Retry SSE
             this.subscribe()
         }
     }

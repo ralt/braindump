@@ -2,7 +2,6 @@
 
 namespace App\Controller;
 
-use App\Entity\AiSession;
 use App\Entity\Recording;
 use App\Entity\User;
 use App\Enum\RecordingStatus;
@@ -69,36 +68,44 @@ class RecordingController extends AbstractController
         // Set Mercure authorization cookie for real-time transcription + chat updates
         $this->mercureAuthorization->setCookie($request, ['*']);
 
+        return $this->render('recording/show.html.twig', $this->statusContext($recording));
+    }
+
+    #[Route('/recordings/{id}/status-content', name: 'app_recording_status_content', methods: ['GET'])]
+    public function statusContent(Recording $recording): Response
+    {
+        $this->denyAccessUnlessGranted('RECORDING_VIEW', $recording);
+
+        return $this->render('recording/_status_content.html.twig', $this->statusContext($recording));
+    }
+
+    /** @return array<string, mixed> */
+    private function statusContext(Recording $recording): array
+    {
         /** @var User|null $user */
         $user = $this->getUser();
 
-        $aiSession = null;
-        $autoFirstMessage = null;
         $aiAvailable = $user !== null
             && $user->getEncryptedAiApiKey() !== null
             && $recording->getStatus() === RecordingStatus::Completed
             && $this->isGranted('RECORDING_AI_SESSION', $recording);
 
-        if ($aiAvailable) {
-            $aiSession = $this->aiSessionRepository->findOneByRecordingForUser($recording, $user);
-            if ($aiSession === null) {
-                $aiSession = (new AiSession())
-                    ->setRecording($recording)
-                    ->setUser($user);
-                $this->em->persist($aiSession);
-                $this->em->flush();
-            }
+        $aiSession = $aiAvailable
+            ? $this->aiSessionRepository->findOneByRecordingForUser($recording, $user)
+            : null;
 
-            if ($aiSession->getMessages()->isEmpty() && $recording->getTranscription()) {
-                $autoFirstMessage = $recording->getTranscription();
-            }
-        }
+        // An empty session only exists right after the user clicked "Start AI chat" —
+        // hand the transcript to the JS controller so it auto-fires the first turn.
+        $autoFirstMessage = ($aiSession !== null && $aiSession->getMessages()->isEmpty())
+            ? ($recording->getTranscription() ?? '')
+            : '';
 
-        return $this->render('recording/show.html.twig', [
+        return [
             'recording' => $recording,
+            'aiAvailable' => $aiAvailable,
             'aiSession' => $aiSession,
             'autoFirstMessage' => $autoFirstMessage,
-        ]);
+        ];
     }
 
     #[Route('/api/recordings', name: 'api_recording_upload', methods: ['POST'])]

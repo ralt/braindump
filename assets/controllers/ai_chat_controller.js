@@ -26,8 +26,31 @@ export default class extends Controller {
         this.inputTarget.addEventListener('keydown', this.onKeyDown.bind(this))
 
         if (this.autoFirstMessageValue && this.messagesTarget.children.length === 0) {
-            this.postMessage(this.autoFirstMessageValue)
+            this.fireWhenMercureReady(() => this.postMessage(this.autoFirstMessageValue))
         }
+    }
+
+    /**
+     * Wait for the Mercure EventSource to be open before invoking `cb`. Without this,
+     * the auto-first-message POST can race the subscription handshake and we'd miss
+     * the server's "user" echo (and possibly early "delta" tokens) — leaving an empty
+     * chat until the user reloads.
+     */
+    fireWhenMercureReady(cb) {
+        if (!this.eventSource || this.eventSource.readyState === EventSource.OPEN) {
+            cb()
+            return
+        }
+        let fired = false
+        const fire = () => {
+            if (fired) return
+            fired = true
+            cb()
+        }
+        this.eventSource.addEventListener('open', fire, { once: true })
+        // Fallback in case `open` never fires (Mercure unreachable, etc.) — proceed
+        // after a short delay so we don't block the user's first message indefinitely.
+        setTimeout(fire, 2000)
     }
 
     renderHistoryMarkdown() {
