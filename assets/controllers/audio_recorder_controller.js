@@ -110,7 +110,9 @@ export default class extends Controller {
     async handleStop() {
         const mimeType = this.mediaRecorder.mimeType
         const blob = new Blob(this.chunks, { type: mimeType })
-        const title = this.titleTarget.value || 'Untitled'
+        // Empty title is intentional — the backend leaves it blank so the
+        // transcription handler can auto-generate one once Whisper is done.
+        const title = this.titleTarget.value.trim()
 
         this.statusTarget.textContent = 'Uploading...'
 

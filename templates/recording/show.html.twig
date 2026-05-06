@@ -1,6 +1,6 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}{{ recording.title }} - Braindump{% endblock %}
+{% block title %}{{ recording.title|default('Untitled') ?: 'Untitled' }} - Braindump{% endblock %}
 
 {% block body %}
     <div {{ stimulus_controller('recording-status', {
@@ -10,7 +10,7 @@
         mercureUrl: recording.status.value in ['pending', 'transcribing'] ? mercurePublicUrl ~ '?topic=' ~ ('recording/' ~ recording.id)|url_encode : ''
     }) }}>
     <div class="flex flex-between flex-center mb-1">
-        <h1>{{ recording.title }}</h1>
+        <h1 {{ stimulus_target('recording-status', 'title') }}>{{ recording.title ?: 'Untitled' }}</h1>
         <div class="flex gap-1">
             <span class="badge badge-{{ recording.status.value }}" {{ stimulus_target('recording-status', 'badge') }}>{{ recording.status.value }}</span>
 

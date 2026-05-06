@@ -116,7 +116,9 @@ class RecordingController extends AbstractController
 
         /** @var UploadedFile|null $audioFile */
         $audioFile = $request->files->get('audio');
-        $title = $request->request->getString('title', 'Untitled');
+        // Empty title is preserved as "" — the transcription handler may auto-title
+        // post-Whisper, and templates render "Untitled" as a fallback for display.
+        $title = trim($request->request->getString('title', ''));
 
         if ($audioFile === null) {
             return $this->json(['error' => 'No audio file provided'], Response::HTTP_BAD_REQUEST);
@@ -208,6 +210,7 @@ class RecordingController extends AbstractController
             'status' => $recording->getStatus()->value,
             'transcription' => $recording->getTranscription(),
             'errorMessage' => $recording->getErrorMessage(),
+            'title' => $recording->getTitle(),
         ]);
     }
 
