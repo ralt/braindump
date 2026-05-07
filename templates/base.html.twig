@@ -597,6 +597,33 @@
                     text-align: center;
                     padding: 1.5rem;
                 }
+
+                /* Pagination */
+                .pagination {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.5rem;
+                    align-items: center;
+                    margin: 1.5rem 0 0.5rem;
+                }
+                @media (min-width: 600px) {
+                    .pagination {
+                        flex-direction: row;
+                        justify-content: space-between;
+                    }
+                }
+                .pagination-summary {
+                    font-size: 0.85rem;
+                }
+                .pagination-controls {
+                    display: flex;
+                    gap: 0.5rem;
+                    align-items: center;
+                }
+                .pagination-page {
+                    font-size: 0.85rem;
+                    padding: 0 0.25rem;
+                }
                 .skill-row-text {
                     flex: 1;
                     min-width: 0;

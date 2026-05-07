@@ -43,16 +43,23 @@ class RecordingController extends AbstractController
         /** @var User $user */
         $user = $this->getUser();
         $query = $request->query->getString('q');
+        $page = max(1, $request->query->getInt('page', 1));
 
         if ($query !== '') {
+            // Search results stay unpaginated for now — the search backend
+            // doesn't support limit/offset cleanly across providers and the
+            // result sets are typically small in practice.
+            $pager = null;
             $recordings = $this->searchProvider->search($query, $user);
         } else {
-            $recordings = $this->recordingRepository->findAccessibleByUser($user);
+            $pager = $this->recordingRepository->paginatedForUser($user, $page);
+            $recordings = $pager->items;
         }
 
         return $this->render('recording/index.html.twig', [
             'recordings' => $recordings,
             'query' => $query,
+            'pager' => $pager,
         ]);
     }
 

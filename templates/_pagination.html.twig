@@ -1,0 +1,22 @@
+{% if pager and pager.pageCount > 1 %}
+    <nav class="pagination" aria-label="Pagination">
+        <span class="pagination-summary text-muted">
+            Showing {{ pager.from }}–{{ pager.to }} of {{ pager.total }}
+        </span>
+        <div class="pagination-controls">
+            {% if pager.hasPrevious %}
+                <a href="{{ path(route, query|default({})|merge({page: pager.page - 1})) }}" class="btn btn-secondary btn-sm">← Previous</a>
+            {% else %}
+                <span class="btn btn-secondary btn-sm btn-disabled" aria-disabled="true">← Previous</span>
+            {% endif %}
+
+            <span class="pagination-page text-muted">Page {{ pager.page }} of {{ pager.pageCount }}</span>
+
+            {% if pager.hasNext %}
+                <a href="{{ path(route, query|default({})|merge({page: pager.page + 1})) }}" class="btn btn-secondary btn-sm">Next →</a>
+            {% else %}
+                <span class="btn btn-secondary btn-sm btn-disabled" aria-disabled="true">Next →</span>
+            {% endif %}
+        </div>
+    </nav>
+{% endif %}

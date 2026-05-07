@@ -21,13 +21,16 @@ class SkillController extends AbstractController
     ) {}
 
     #[Route('/skills', name: 'app_skill_index', methods: ['GET'])]
-    public function index(): Response
+    public function index(Request $request): Response
     {
         /** @var User $user */
         $user = $this->getUser();
+        $page = max(1, $request->query->getInt('page', 1));
+        $pager = $this->skills->paginatedForUser($user, $page);
 
         return $this->render('skill/index.html.twig', [
-            'skills' => $this->skills->findByUser($user),
+            'skills' => $pager->items,
+            'pager' => $pager,
         ]);
     }
 

@@ -4,6 +4,7 @@ namespace App\Repository;
 
 use App\Entity\Skill;
 use App\Entity\User;
+use App\Pagination\Pager;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -21,6 +22,25 @@ class SkillRepository extends ServiceEntityRepository
     public function findByUser(User $user): array
     {
         return $this->findBy(['user' => $user], ['name' => 'ASC']);
+    }
+
+    /**
+     * @return Pager<Skill>
+     */
+    public function paginatedForUser(User $user, int $page = 1, int $perPage = 20): Pager
+    {
+        $page = max(1, $page);
+        $perPage = max(1, $perPage);
+
+        $items = $this->findBy(
+            ['user' => $user],
+            ['name' => 'ASC'],
+            $perPage,
+            ($page - 1) * $perPage,
+        );
+        $total = $this->count(['user' => $user]);
+
+        return new Pager($items, $total, $page, $perPage);
     }
 
     public function findOneByUserAndName(User $user, string $name): ?Skill
