@@ -35,6 +35,14 @@ security:
             logout:
                 path: app_logout
                 target: app_login
+            remember_me:
+                secret: '%kernel.secret%'
+                # 30 days — keeps users signed in across browser restarts so a
+                # recording session isn't suddenly killed by an idle timeout.
+                lifetime: 2592000
+                secure: auto
+                samesite: lax
+                always_remember_me: true
 
     access_control:
         - { path: ^/login, roles: PUBLIC_ACCESS }

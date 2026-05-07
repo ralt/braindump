@@ -124,7 +124,21 @@ export default class extends Controller {
             const response = await fetch(this.uploadUrlValue, {
                 method: 'POST',
                 body: formData,
+                redirect: 'manual',
             })
+
+            // The firewall returns a 302/303 to /login when the session has
+            // expired. fetch with redirect:'manual' surfaces that as an opaque
+            // redirect (response.type === 'opaqueredirect') so we can react
+            // explicitly instead of trying to parse the login page as JSON.
+            if (response.type === 'opaqueredirect' || response.status === 401) {
+                this.showTarget('uploadStatus')
+                this.uploadStatusTarget.className = 'alert alert-error'
+                this.uploadStatusTarget.innerHTML =
+                    'Your session expired before the upload finished. ' +
+                    '<a href="/login">Log in again</a> — your audio is still in this browser tab, you can re-upload after.'
+                return
+            }
 
             const data = await response.json()
 

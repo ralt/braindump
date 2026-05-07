@@ -167,7 +167,18 @@ export default class extends Controller {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ content }),
+                redirect: 'manual',
             })
+
+            // Firewall redirected us to /login — the session expired since the
+            // page was loaded. Show an actionable notice rather than a cryptic
+            // "HTTP 0" error from a follow-up JSON parse.
+            if (response.type === 'opaqueredirect' || response.status === 401) {
+                this.appendError('Your session expired. Reload the page and log in again.')
+                this.setSending(false)
+                return
+            }
+
             if (!response.ok) {
                 let errorText = `HTTP ${response.status}`
                 try {
