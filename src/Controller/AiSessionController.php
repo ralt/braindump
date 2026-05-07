@@ -5,9 +5,11 @@ namespace App\Controller;
 use App\Entity\AiMessage;
 use App\Entity\AiSession;
 use App\Entity\Recording;
+use App\Entity\Skill;
 use App\Entity\User;
 use App\Enum\AiMessageRole;
 use App\Repository\AiSessionRepository;
+use App\Repository\SkillRepository;
 use App\Service\AiChatClient\AiChatClientFactory;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -29,6 +31,7 @@ class AiSessionController extends AbstractController
         private HubInterface $hub,
         private AiChatClientFactory $chatClientFactory,
         private AiSessionRepository $sessions,
+        private SkillRepository $skills,
     ) {}
 
     #[Route('/api/recordings/{id}/ai-chat/start', name: 'api_ai_chat_start', methods: ['POST'])]
@@ -58,6 +61,8 @@ class AiSessionController extends AbstractController
             'aiSession' => $session,
             'messages' => $session->getMessages(),
             'autoFirstMessage' => $recording->getTranscription() ?? '',
+            'skills' => $this->skills->findByUser($user),
+            'activeSkillIds' => $this->activeSkillIds($session),
         ]);
 
         return $this->json([
@@ -118,7 +123,8 @@ class AiSessionController extends AbstractController
         try {
             [$client, $apiKey] = $this->chatClientFactory->forUser($session->getUser());
 
-            foreach ($client->streamCompletion($apiKey, self::SYSTEM_PROMPT, $history) as $delta) {
+            $systemPrompt = $this->buildSystemPrompt($session);
+            foreach ($client->streamCompletion($apiKey, $systemPrompt, $history) as $delta) {
                 $assistantBuffer .= $delta;
                 $this->hub->publish(new Update($topic, json_encode([
                     'type' => 'delta',
@@ -162,6 +168,68 @@ class AiSessionController extends AbstractController
         $this->em->flush();
 
         return $this->json(['ok' => true]);
+    }
+
+    #[Route('/api/ai-sessions/{id}/skills', name: 'api_ai_session_skills', methods: ['POST'])]
+    public function setActiveSkills(AiSession $session, Request $request): JsonResponse
+    {
+        $this->assertSessionOwner($session);
+
+        $data = json_decode($request->getContent(), true);
+        $requestedIds = array_map('strval', (array) ($data['skillIds'] ?? []));
+
+        // Resolve the requested IDs to actual Skill rows that belong to this user —
+        // anything else is silently ignored, no cross-user activation.
+        /** @var User $user */
+        $user = $this->getUser();
+        $valid = [];
+        foreach ($requestedIds as $skillId) {
+            $skill = $this->skills->find($skillId);
+            if ($skill instanceof Skill && $skill->getUser()->getId()->equals($user->getId())) {
+                $valid[(string) $skill->getId()] = $skill;
+            }
+        }
+
+        // Remove ones that are no longer requested
+        foreach ($session->getActiveSkills()->toArray() as $existing) {
+            if (!isset($valid[(string) $existing->getId()])) {
+                $session->removeActiveSkill($existing);
+            }
+        }
+        // Add newly requested ones
+        foreach ($valid as $skill) {
+            $session->addActiveSkill($skill);
+        }
+        $this->em->flush();
+
+        return $this->json([
+            'activeSkillIds' => array_keys($valid),
+        ]);
+    }
+
+    private function buildSystemPrompt(AiSession $session): string
+    {
+        $skills = $session->getActiveSkills();
+        if ($skills->count() === 0) {
+            return self::SYSTEM_PROMPT;
+        }
+
+        $parts = [self::SYSTEM_PROMPT];
+        $parts[] = "\nThe user has activated the following skills for this conversation. Apply their guidance to every response.";
+        foreach ($skills as $skill) {
+            $parts[] = sprintf("\n## Skill: %s\n\n%s", $skill->getName(), $skill->getInstructions());
+        }
+        return implode("\n", $parts);
+    }
+
+    /** @return string[] */
+    private function activeSkillIds(AiSession $session): array
+    {
+        $ids = [];
+        foreach ($session->getActiveSkills() as $skill) {
+            $ids[] = (string) $skill->getId();
+        }
+        return $ids;
     }
 
     private function assertSessionOwner(AiSession $session): void

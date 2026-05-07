@@ -1,0 +1,38 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Skills - Braindump{% endblock %}
+
+{% block body %}
+    <div class="flex flex-between flex-center mb-1">
+        <h1>Skills</h1>
+        <a href="{{ path('app_skill_new') }}" class="btn btn-primary btn-sm">+ New skill</a>
+    </div>
+
+    <div class="card">
+        <p class="text-muted">Skills are reusable context documents — tone guidelines, writing rules, domain knowledge, persona definitions. When you activate one in a chat (via the <strong>Skills</strong> button in the chat header), its instructions get loaded as additional system context for every reply. They don't appear in the chat as messages — they shape how the assistant responds. Good examples: "Write in a slightly sarcastic, tongue-in-cheek tone", "Format as a formal business email to a bank", "Match this poetry style".</p>
+    </div>
+
+    {% if skills is empty %}
+        <div class="card text-center p-section">
+            <p class="text-muted mb-1">No skills yet.</p>
+            <a href="{{ path('app_skill_new') }}" class="btn btn-primary btn-sm">Create your first skill</a>
+        </div>
+    {% else %}
+        {% for skill in skills %}
+            <div class="card">
+                <div class="flex flex-between flex-center mb-1">
+                    <h2>{{ skill.name }}</h2>
+                    <div class="flex gap-1">
+                        <a href="{{ path('app_skill_edit', {id: skill.id}) }}" class="btn btn-secondary btn-sm">Edit</a>
+                        <form method="post" action="{{ path('app_skill_delete', {id: skill.id}) }}" onsubmit="return confirm('Delete this skill?')" class="inline">
+                            <input type="hidden" name="_token" value="{{ csrf_token('skill_delete_' ~ skill.id) }}">
+                            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                        </form>
+                    </div>
+                </div>
+                <pre class="skill-instructions">{{ skill.instructions }}</pre>
+                <div class="text-muted skill-meta">Updated {{ skill.updatedAt|date('Y-m-d H:i') }}</div>
+            </div>
+        {% endfor %}
+    {% endif %}
+{% endblock %}

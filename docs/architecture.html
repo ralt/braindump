@@ -336,7 +336,7 @@
                 </div>
                 <p>Serves two distinct roles:</p>
                 <ul class="uses-list">
-                    <li><strong>Application data</strong> &mdash; recordings, users, AI sessions, shares (Doctrine ORM)</li>
+                    <li><strong>Application data</strong> &mdash; recordings, users, AI sessions, messages, skills, shares (Doctrine ORM)</li>
                     <li><strong>Message queue</strong> &mdash; the <code>async</code> Messenger transport uses Doctrine transport with LISTEN/NOTIFY for instant delivery without polling (transcription jobs)</li>
                 </ul>
                 <div class="alternative">
@@ -552,6 +552,14 @@
                     <h3>What we removed</h3>
                 </div>
                 <p>The <code>ai-session</code> Messenger transport, the dedicated worker container, the pi.dev binary, the bubblewrap install, the xterm.js terminal, the Revolt event loop dependency, two HTTP control endpoints, and a full second page in the routing tree. The schema lost a status enum and a <code>closed_at</code> column.</p>
+            </div>
+
+            <div class="component">
+                <div class="component-header">
+                    <h3>Skills as system-prompt augmentation</h3>
+                </div>
+                <p>Neither Anthropic Messages nor OpenAI Chat Completions has a first-class "skill" parameter &mdash; it's a client-side concept (Claude Code, Cursor, etc. all do this). Each <code>Skill</code> is a name + free-form instructions document scoped to a user. Active skills for a session live in an <code>ai_session_skill</code> join table.</p>
+                <p>Before each provider call, <code>buildSystemPrompt(AiSession)</code> concatenates the base writing-assistant prompt with each active skill's instructions under <code>## Skill: name</code> headers. That string lands in Anthropic's top-level <code>system</code> field or OpenAI's leading <code>role: system</code> message &mdash; both providers treat it as foundational context for every reply. Skills are never visible in the chat history; they only shape the assistant's behavior.</p>
             </div>
 
         </div>

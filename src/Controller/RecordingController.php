@@ -8,6 +8,7 @@ use App\Enum\RecordingStatus;
 use App\Message\TranscribeRecordingMessage;
 use App\Repository\AiSessionRepository;
 use App\Repository\RecordingRepository;
+use App\Repository\SkillRepository;
 use App\Search\SearchProviderInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\AI\Platform\Message\Content\Audio;
@@ -27,6 +28,7 @@ class RecordingController extends AbstractController
     public function __construct(
         private RecordingRepository $recordingRepository,
         private AiSessionRepository $aiSessionRepository,
+        private SkillRepository $skillRepository,
         private EntityManagerInterface $em,
         private MessageBusInterface $bus,
         private SearchProviderInterface $searchProvider,
@@ -100,11 +102,20 @@ class RecordingController extends AbstractController
             ? ($recording->getTranscription() ?? '')
             : '';
 
+        $activeSkillIds = [];
+        if ($aiSession !== null) {
+            foreach ($aiSession->getActiveSkills() as $skill) {
+                $activeSkillIds[] = (string) $skill->getId();
+            }
+        }
+
         return [
             'recording' => $recording,
             'aiAvailable' => $aiAvailable,
             'aiSession' => $aiSession,
             'autoFirstMessage' => $autoFirstMessage,
+            'skills' => $user !== null ? $this->skillRepository->findByUser($user) : [],
+            'activeSkillIds' => $activeSkillIds,
         ];
     }
 

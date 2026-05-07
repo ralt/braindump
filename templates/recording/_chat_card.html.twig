@@ -1,3 +1,4 @@
+{% set _activeSkillIds = activeSkillIds|default([]) %}
 <div class="card chat-card"
      {{ stimulus_controller('ai-chat', {
          sessionId: aiSession.id.toRfc4122,
@@ -8,7 +9,42 @@
      }) }}>
     <div class="chat-header flex flex-between flex-center">
         <span>Rewriting assistant</span>
-        <button type="button" class="btn btn-secondary btn-sm" {{ stimulus_action('ai-chat', 'clear') }}>Clear conversation</button>
+        <div class="flex gap-1 flex-center">
+            <div class="chat-skills"
+                 {{ stimulus_controller('chat-skills', {
+                     skillsUrl: path('api_ai_session_skills', {id: aiSession.id})
+                 }) }}>
+                <button type="button" class="btn btn-secondary btn-sm"
+                        {{ stimulus_target('chat-skills', 'toggle') }}
+                        {{ stimulus_action('chat-skills', 'togglePanel') }}>
+                    Skills
+                    <span class="chat-skills-count" {{ stimulus_target('chat-skills', 'count') }}>
+                        {%- if _activeSkillIds|length > 0 %}({{ _activeSkillIds|length }}){% endif -%}
+                    </span>
+                </button>
+                <div class="chat-skills-panel hidden" {{ stimulus_target('chat-skills', 'panel') }}>
+                    {% if skills|default([]) is empty %}
+                        <p class="text-muted">No skills defined yet. <a href="{{ path('app_skill_index') }}">Create one</a> to give the assistant extra context.</p>
+                    {% else %}
+                        <p class="text-muted chat-skills-help">Activated skills are loaded as additional system context for this conversation.</p>
+                        {% for skill in skills %}
+                            <label class="chat-skill-row">
+                                <input type="checkbox"
+                                       value="{{ skill.id }}"
+                                       {{ stimulus_target('chat-skills', 'checkbox') }}
+                                       {{ stimulus_action('chat-skills', 'change', 'change') }}
+                                       {% if skill.id.toRfc4122 in _activeSkillIds %}checked{% endif %}>
+                                <span class="chat-skill-name">{{ skill.name }}</span>
+                            </label>
+                        {% endfor %}
+                        <div class="chat-skills-footer">
+                            <a href="{{ path('app_skill_index') }}" class="text-muted">Manage skills</a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            <button type="button" class="btn btn-secondary btn-sm" {{ stimulus_action('ai-chat', 'clear') }}>Clear conversation</button>
+        </div>
     </div>
     <div class="chat-messages" {{ stimulus_target('ai-chat', 'messages') }}>
         {% for message in messages %}

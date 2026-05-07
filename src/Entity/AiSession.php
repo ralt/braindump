@@ -35,11 +35,18 @@ class AiSession
     #[ORM\OrderBy(['createdAt' => 'ASC'])]
     private Collection $messages;
 
+    /** @var Collection<int, Skill> */
+    #[ORM\ManyToMany(targetEntity: Skill::class)]
+    #[ORM\JoinTable(name: 'ai_session_skill')]
+    #[ORM\OrderBy(['name' => 'ASC'])]
+    private Collection $activeSkills;
+
     public function __construct()
     {
         $this->id = Uuid::v7();
         $this->createdAt = new \DateTimeImmutable();
         $this->messages = new ArrayCollection();
+        $this->activeSkills = new ArrayCollection();
     }
 
     public function getId(): Uuid
@@ -97,6 +104,26 @@ class AiSession
             $this->messages->add($message);
             $message->setSession($this);
         }
+        return $this;
+    }
+
+    /** @return Collection<int, Skill> */
+    public function getActiveSkills(): Collection
+    {
+        return $this->activeSkills;
+    }
+
+    public function addActiveSkill(Skill $skill): static
+    {
+        if (!$this->activeSkills->contains($skill)) {
+            $this->activeSkills->add($skill);
+        }
+        return $this;
+    }
+
+    public function removeActiveSkill(Skill $skill): static
+    {
+        $this->activeSkills->removeElement($skill);
         return $this;
     }
 }

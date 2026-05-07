@@ -1,0 +1,46 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ mode == 'edit' ? 'Edit skill' : 'New skill' }} - Braindump{% endblock %}
+
+{% block body %}
+    <div class="flex flex-between flex-center mb-1">
+        <h1>{{ mode == 'edit' ? 'Edit skill' : 'New skill' }}</h1>
+        <a href="{{ path('app_skill_index') }}" class="btn btn-secondary btn-sm">Back</a>
+    </div>
+
+    {% if errors is defined and errors %}
+        <div class="card">
+            <div class="alert alert-error">
+                <ul class="skill-errors">
+                    {% for error in errors %}
+                        <li>{{ error }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    {% endif %}
+
+    <div class="card">
+        <form method="post" action="{{ action }}">
+            <input type="hidden" name="_token" value="{{ csrf_token(csrf_id) }}">
+
+            <div class="form-group">
+                <label for="skill-name">Name</label>
+                <input type="text" id="skill-name" name="name" maxlength="100" required
+                       placeholder="e.g. Sarcastic tone, Bank email style, Poetry rules"
+                       value="{{ skill.name }}">
+            </div>
+
+            <div class="form-group">
+                <label for="skill-instructions">Instructions</label>
+                <textarea id="skill-instructions" name="instructions" rows="12" required
+                          placeholder="A full description of the tone, style, format, persona, or domain knowledge the AI should apply. This becomes additional system context for any chat where you activate this skill — write it as if briefing a writer who's never seen your work before. The longer and more specific, the better.">{{ skill.instructions }}</textarea>
+            </div>
+
+            <div class="flex gap-1">
+                <button type="submit" class="btn btn-primary">{{ mode == 'edit' ? 'Save changes' : 'Create skill' }}</button>
+                <a href="{{ path('app_skill_index') }}" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock %}

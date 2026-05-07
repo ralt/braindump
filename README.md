@@ -7,10 +7,11 @@ Record audio in your browser, get it transcribed via OpenAI Whisper, search acro
 ## Features
 
 - **Audio Recording** — Record directly from the browser with microphone selection. Up to 25MB per recording (the OpenAI Whisper file size limit).
-- **Automatic Transcription** — Audio is transcribed in the background via OpenAI Whisper through Symfony AI.
+- **Automatic Transcription** — Audio is transcribed in the background via OpenAI Whisper through Symfony AI. If the user left the title field blank, gpt-4.1-mini generates a short descriptive title from the transcript and the page header updates live via Mercure.
 - **Full-Text Search** — PostgreSQL full-text search across titles and transcriptions, with configurable OpenSearch backend.
 - **Sharing** — Share recordings with other users by email, with view or edit permissions (Google Docs-style).
 - **Rewriting Chat** — On the recording page, the transcript is fed to an AI assistant scoped to rewriting/editing. Stream replies appear inline, history persists across reloads, and there's a voice-input button (with mic device picker) for quick refinements. Supports multiple providers (Anthropic, OpenAI, Google, Groq, Mistral, DeepSeek, xAI, OpenRouter). Each user provides their own API key, stored encrypted via Upsun Vault KMS.
+- **Skills** — Reusable context documents (tone guidelines, writing rules, persona definitions, domain knowledge) you define once on `/skills` and toggle on per chat. Activated skills get concatenated into the system prompt for every assistant call in that conversation — invisible in the message stream, but they shape every reply. Per-user, with a `(session, skill)` join table tracking which are active in each conversation.
 - **Enterprise-Ready Auth** — Form login with per-user roles and permissions. OIDC for enterprise SSO coming soon.
 - **Admin Back-Office** — EasyAdmin dashboard for user management.
 

@@ -21,6 +21,8 @@
             aiSession: aiSession,
             messages: aiSession.messages,
             autoFirstMessage: autoFirstMessage,
+            skills: skills|default([]),
+            activeSkillIds: activeSkillIds|default([]),
         }) }}
     {% endif %}
 {% elseif recording.status.value == 'failed' %}
