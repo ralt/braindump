@@ -50,16 +50,11 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\OneToMany(targetEntity: Recording::class, mappedBy: 'owner')]
     private Collection $recordings;
 
-    /** @var Collection<int, RecordingShare> */
-    #[ORM\OneToMany(targetEntity: RecordingShare::class, mappedBy: 'sharedWith')]
-    private Collection $sharedRecordings;
-
     public function __construct()
     {
         $this->id = Uuid::v7();
         $this->createdAt = new \DateTimeImmutable();
         $this->recordings = new ArrayCollection();
-        $this->sharedRecordings = new ArrayCollection();
     }
 
     public function getId(): Uuid
@@ -162,12 +157,6 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function getRecordings(): Collection
     {
         return $this->recordings;
-    }
-
-    /** @return Collection<int, RecordingShare> */
-    public function getSharedRecordings(): Collection
-    {
-        return $this->sharedRecordings;
     }
 
     public function getPlainPassword(): ?string

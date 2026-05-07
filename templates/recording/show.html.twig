@@ -14,10 +14,6 @@
         <div class="flex gap-1">
             <span class="badge badge-{{ recording.status.value }}" {{ stimulus_target('recording-status', 'badge') }}>{{ recording.status.value }}</span>
 
-            {% if is_granted('RECORDING_SHARE', recording) %}
-                <button class="btn btn-secondary btn-sm" {{ stimulus_action('share-modal', 'open') }}>Share</button>
-            {% endif %}
-
             {% if is_granted('RECORDING_DELETE', recording) %}
                 <form method="post" action="{{ path('api_recording_delete', {id: recording.id}) }}" onsubmit="return confirm('Delete this recording? This cannot be undone.')">
                     <input type="hidden" name="_token" value="{{ csrf_token('delete-recording') }}">
@@ -40,59 +36,5 @@
     <div {{ stimulus_target('recording-status', 'content') }}>
         {{ include('recording/_status_content.html.twig') }}
     </div>
-
-    {% if recording.shares|length > 0 %}
-        <div class="card card-flush">
-            <div class="card-section">
-                <h3>Shared with</h3>
-            </div>
-            <table class="mt-1">
-                <thead>
-                    <tr>
-                        <th>User</th>
-                        <th>Permission</th>
-                        {% if is_granted('RECORDING_SHARE', recording) %}
-                            <th></th>
-                        {% endif %}
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for share in recording.shares %}
-                        <tr>
-                            <td>{{ share.sharedWith.displayName }} <span class="text-muted">({{ share.sharedWith.email }})</span></td>
-                            <td><span class="badge badge-completed">{{ share.permission.value }}</span></td>
-                            {% if is_granted('RECORDING_SHARE', recording) %}
-                                <td>
-                                    <form method="post" action="{{ path('api_recording_unshare', {id: recording.id, userId: share.sharedWith.id}) }}" class="inline">
-                                        <input type="hidden" name="_token" value="{{ csrf_token('unshare') }}">
-                                        <button type="submit" class="btn btn-danger btn-sm">Remove</button>
-                                    </form>
-                                </td>
-                            {% endif %}
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    {% endif %}
-
-    {% if is_granted('RECORDING_SHARE', recording) %}
-        <div class="card hidden" id="share-modal" {{ stimulus_controller('share-modal', {
-            shareUrl: path('api_recording_share', {id: recording.id})
-        }) }}>
-            <h3 class="mb-1">Share Recording</h3>
-            <form {{ stimulus_action('share-modal', 'submit', 'submit') }}>
-                <div class="flex gap-1">
-                    <input type="email" name="email" placeholder="User email..." class="input-inline" {{ stimulus_target('share-modal', 'email') }}>
-                    <select name="permission" class="select-inline" {{ stimulus_target('share-modal', 'permission') }}>
-                        <option value="view">View</option>
-                        <option value="edit">Edit</option>
-                    </select>
-                    <button type="submit" class="btn btn-primary">Share</button>
-                </div>
-            </form>
-            <div {{ stimulus_target('share-modal', 'message') }}></div>
-        </div>
-    {% endif %}
     </div>
 {% endblock %}

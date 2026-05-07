@@ -49,10 +49,6 @@ class Recording
     #[ORM\Column]
     private \DateTimeImmutable $updatedAt;
 
-    /** @var Collection<int, RecordingShare> */
-    #[ORM\OneToMany(targetEntity: RecordingShare::class, mappedBy: 'recording', cascade: ['remove'])]
-    private Collection $shares;
-
     /** @var Collection<int, AiSession> */
     #[ORM\OneToMany(targetEntity: AiSession::class, mappedBy: 'recording', cascade: ['remove'])]
     private Collection $aiSessions;
@@ -62,7 +58,6 @@ class Recording
         $this->id = Uuid::v7();
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = new \DateTimeImmutable();
-        $this->shares = new ArrayCollection();
         $this->aiSessions = new ArrayCollection();
     }
 
@@ -185,12 +180,6 @@ class Recording
     public function getUpdatedAt(): \DateTimeImmutable
     {
         return $this->updatedAt;
-    }
-
-    /** @return Collection<int, RecordingShare> */
-    public function getShares(): Collection
-    {
-        return $this->shares;
     }
 
     /** @return Collection<int, AiSession> */

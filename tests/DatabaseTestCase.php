@@ -16,7 +16,6 @@ abstract class DatabaseTestCase extends WebTestCase
         $connection = $em->getConnection();
 
         $connection->executeStatement('DELETE FROM ai_session');
-        $connection->executeStatement('DELETE FROM recording_share');
         $connection->executeStatement('DELETE FROM recording');
         $connection->executeStatement('DELETE FROM "user"');
 

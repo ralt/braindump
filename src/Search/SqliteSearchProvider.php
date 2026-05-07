@@ -29,9 +29,8 @@ class SqliteSearchProvider implements SearchProviderInterface
         $rows = $conn->fetchAllAssociative(
             'SELECT f.recording_id FROM recording_fts f
              JOIN recording r ON r.id = f.recording_id
-             LEFT JOIN recording_share s ON s.recording_id = r.id
              WHERE recording_fts MATCH :query
-               AND (r.owner_id = :userId OR s.shared_with_id = :userId)
+               AND r.owner_id = :userId
              ORDER BY rank',
             [
                 'query' => $query,

@@ -20,9 +20,8 @@ class PostgresSearchProvider implements SearchProviderInterface
         $sql = '
             SELECT r.id
             FROM recording r
-            LEFT JOIN recording_share s ON s.recording_id = r.id
             WHERE r.search_vector @@ plainto_tsquery(\'english\', :query)
-              AND (r.owner_id = :userId OR s.shared_with_id = :userId)
+              AND r.owner_id = :userId
             ORDER BY ts_rank(r.search_vector, plainto_tsquery(\'english\', :query)) DESC
         ';
 
