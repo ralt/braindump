@@ -597,17 +597,23 @@
                     text-align: center;
                     padding: 1.5rem;
                 }
-                .skill-instructions {
-                    white-space: pre-wrap;
-                    word-wrap: break-word;
-                    font-family: inherit;
-                    font-size: 0.875rem;
-                    line-height: 1.5;
-                    background: var(--border-light);
-                    padding: 0.75rem;
-                    border-radius: 8px;
-                    margin: 0.5rem 0 0.25rem;
+                .skill-row-text {
+                    flex: 1;
+                    min-width: 0;
+                }
+                .skill-row-name {
                     color: var(--text);
+                    text-decoration: none;
+                }
+                .skill-row-name:hover {
+                    color: var(--accent);
+                }
+                .skill-excerpt {
+                    font-size: 0.85rem;
+                    margin: 0.25rem 0;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
                 }
                 .skill-meta {
                     font-size: 0.75rem;

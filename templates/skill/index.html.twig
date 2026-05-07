@@ -19,9 +19,15 @@
         </div>
     {% else %}
         {% for skill in skills %}
-            <div class="card">
-                <div class="flex flex-between flex-center mb-1">
-                    <h2>{{ skill.name }}</h2>
+            {% set excerpt = skill.instructions|replace({"\r": ' ', "\n": ' ', "\t": ' '})|trim %}
+            {% set excerpt = excerpt|length > 140 ? excerpt|slice(0, 140) ~ '…' : excerpt %}
+            <div class="card skill-row">
+                <div class="flex flex-between flex-center">
+                    <div class="skill-row-text">
+                        <h2><a href="{{ path('app_skill_edit', {id: skill.id}) }}" class="skill-row-name">{{ skill.name }}</a></h2>
+                        <p class="skill-excerpt text-muted">{{ excerpt }}</p>
+                        <div class="text-muted skill-meta">Updated {{ skill.updatedAt|date('Y-m-d H:i') }}</div>
+                    </div>
                     <div class="flex gap-1">
                         <a href="{{ path('app_skill_edit', {id: skill.id}) }}" class="btn btn-secondary btn-sm">Edit</a>
                         <form method="post" action="{{ path('app_skill_delete', {id: skill.id}) }}" onsubmit="return confirm('Delete this skill?')" class="inline">
@@ -30,8 +36,6 @@
                         </form>
                     </div>
                 </div>
-                <pre class="skill-instructions">{{ skill.instructions }}</pre>
-                <div class="text-muted skill-meta">Updated {{ skill.updatedAt|date('Y-m-d H:i') }}</div>
             </div>
         {% endfor %}
     {% endif %}
