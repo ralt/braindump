@@ -4,6 +4,8 @@ Braindump is not a quick voice memo app. It's for the longer stuff — the 5-min
 
 Record audio in your browser, get it transcribed via OpenAI Whisper, search across all your transcriptions, share them with others, and refine the text with an inline AI rewriting chat. Built with Symfony, deployed on Upsun.
 
+![Inline rewriting chat — the transcript becomes the first user message, and the assistant streams its reply via Mercure.](docs/recording-ai-chat.png)
+
 ## Features
 
 - **Audio Recording** — Record directly from the browser with microphone selection. Up to 25MB per recording (the OpenAI Whisper file size limit).

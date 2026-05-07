@@ -155,6 +155,42 @@
         }
         .feature p { color: var(--text-muted); font-size: 0.9rem; }
 
+        /* Screenshots */
+        .shots {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+        }
+        .shot {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: all 0.2s ease;
+        }
+        .shot:hover {
+            border-color: var(--accent);
+            box-shadow: 0 4px 20px var(--glow);
+        }
+        .shot img {
+            display: block;
+            width: 100%;
+            height: auto;
+            border-bottom: 1px solid var(--border);
+        }
+        .shot figcaption {
+            padding: 0.75rem 1rem 1rem;
+        }
+        .shot figcaption strong {
+            display: block;
+            font-size: 0.95rem;
+            margin-bottom: 0.25rem;
+        }
+        .shot figcaption span {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
         /* Architecture */
         .arch-grid {
             display: grid;
@@ -344,6 +380,33 @@
                 <h3>Refine with AI</h3>
                 <p>Below the transcript, an AI assistant locked to rewriting/editing streams suggestions inline. Toggle in your saved skills (tone, persona, format rules) and iterate via text or a quick voice button. Pick your provider &mdash; Anthropic, OpenAI, Google, and more.</p>
             </div>
+        </div>
+    </section>
+
+    <section class="section">
+        <h2>Screenshots</h2>
+        <div class="shots">
+            <figure class="shot">
+                <img src="create-recording.png" alt="The New Recording form: title field, microphone picker, and Record/Stop buttons.">
+                <figcaption>
+                    <strong>1. Record</strong>
+                    <span>Pick your microphone and hit record. Skip the title field if you want — the app will generate one from the transcript.</span>
+                </figcaption>
+            </figure>
+            <figure class="shot">
+                <img src="recording-created.png" alt="Recording detail page showing transcript and a Start AI chat button.">
+                <figcaption>
+                    <strong>2. Read the transcript</strong>
+                    <span>Whisper transcribes in the background. Once it&rsquo;s done, the title fills in automatically and a Start AI chat button appears.</span>
+                </figcaption>
+            </figure>
+            <figure class="shot">
+                <img src="recording-ai-chat.png" alt="Inline rewriting chat with the transcript as the first user message and an assistant reply streaming in.">
+                <figcaption>
+                    <strong>3. Refine with AI</strong>
+                    <span>The transcript becomes the first message; the assistant streams its reply via Mercure. Toggle Skills in the header to load extra context.</span>
+                </figcaption>
+            </figure>
         </div>
     </section>
 
