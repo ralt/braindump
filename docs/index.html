@@ -158,8 +158,8 @@
         /* Screenshots */
         .shots {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 1.5rem;
+            grid-template-columns: 1fr;
+            gap: 2rem;
         }
         .shot {
             background: var(--surface);
@@ -167,28 +167,35 @@
             border-radius: 12px;
             overflow: hidden;
             transition: all 0.2s ease;
+            margin: 0;
         }
         .shot:hover {
             border-color: var(--accent);
             box-shadow: 0 4px 20px var(--glow);
+        }
+        .shot a {
+            display: block;
+            line-height: 0;
         }
         .shot img {
             display: block;
             width: 100%;
             height: auto;
             border-bottom: 1px solid var(--border);
+            cursor: zoom-in;
         }
         .shot figcaption {
-            padding: 0.75rem 1rem 1rem;
+            padding: 1rem 1.25rem 1.25rem;
         }
         .shot figcaption strong {
             display: block;
-            font-size: 0.95rem;
-            margin-bottom: 0.25rem;
+            font-size: 1rem;
+            margin-bottom: 0.35rem;
         }
         .shot figcaption span {
             color: var(--text-muted);
-            font-size: 0.85rem;
+            font-size: 0.9rem;
+            line-height: 1.5;
         }
 
         /* Architecture */
@@ -387,21 +394,27 @@
         <h2>Screenshots</h2>
         <div class="shots">
             <figure class="shot">
-                <img src="create-recording.png" alt="The New Recording form: title field, microphone picker, and Record/Stop buttons.">
+                <a href="create-recording.png" target="_blank" rel="noopener">
+                    <img src="create-recording.png" alt="The New Recording form: title field, microphone picker, and Record/Stop buttons.">
+                </a>
                 <figcaption>
                     <strong>1. Record</strong>
                     <span>Pick your microphone and hit record. Skip the title field if you want — the app will generate one from the transcript.</span>
                 </figcaption>
             </figure>
             <figure class="shot">
-                <img src="recording-created.png" alt="Recording detail page showing transcript and a Start AI chat button.">
+                <a href="recording-created.png" target="_blank" rel="noopener">
+                    <img src="recording-created.png" alt="Recording detail page showing transcript and a Start AI chat button.">
+                </a>
                 <figcaption>
                     <strong>2. Read the transcript</strong>
                     <span>Whisper transcribes in the background. Once it&rsquo;s done, the title fills in automatically and a Start AI chat button appears.</span>
                 </figcaption>
             </figure>
             <figure class="shot">
-                <img src="recording-ai-chat.png" alt="Inline rewriting chat with the transcript as the first user message and an assistant reply streaming in.">
+                <a href="recording-ai-chat.png" target="_blank" rel="noopener">
+                    <img src="recording-ai-chat.png" alt="Inline rewriting chat with the transcript as the first user message and an assistant reply streaming in.">
+                </a>
                 <figcaption>
                     <strong>3. Refine with AI</strong>
                     <span>The transcript becomes the first message; the assistant streams its reply via Mercure. Toggle Skills in the header to load extra context.</span>
