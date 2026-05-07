@@ -71,6 +71,11 @@ class CiRunCommand extends Command
                 return Command::FAILURE;
             }
 
+            // 0. Sweep any stale ci-test-* environments left over from prior runs so we
+            // never accumulate them on the project. Only the new branch we're about to
+            // create will remain after this command finishes.
+            $this->cleanupOldCiEnvironments($project, $io);
+
             // 1. Create branch
             $io->info('Creating branch...');
             $activity = $mainEnv->branch($branchName, $branchName);
@@ -204,6 +209,30 @@ class CiRunCommand extends Command
             }
 
             return Command::FAILURE;
+        }
+    }
+
+    private function cleanupOldCiEnvironments(mixed $project, SymfonyStyle $io): void
+    {
+        foreach ($project->getEnvironments() as $env) {
+            $name = $env->name ?? $env->id ?? '';
+            if (!str_starts_with((string) $name, 'ci-test-')) {
+                continue;
+            }
+            $io->info(sprintf('Cleaning up stale CI environment: %s', $name));
+            try {
+                if (method_exists($env, 'isActive') && $env->isActive()) {
+                    $env->deactivate()->wait(null, null, 5);
+                    $env->refresh();
+                }
+                $env->delete();
+            } catch (\Throwable $e) {
+                // Best-effort — keep going so we still proceed with the new run.
+                $this->logger->warning('Failed to delete stale CI environment', [
+                    'env' => $name,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
     }
 
