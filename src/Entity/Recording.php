@@ -93,6 +93,22 @@ class Recording
         return $this;
     }
 
+    /**
+     * Title for display: falls back to a status-aware placeholder so the UI
+     * doesn't show a confusing blank or stale "Untitled" while the auto-title
+     * step is still pending behind transcription.
+     */
+    public function getDisplayTitle(): string
+    {
+        if ($this->title !== '') {
+            return $this->title;
+        }
+        return match ($this->status) {
+            RecordingStatus::Pending, RecordingStatus::Transcribing => 'Generating title…',
+            default => 'Untitled',
+        };
+    }
+
     public function getAudioFilePath(): string
     {
         return $this->audioFilePath;

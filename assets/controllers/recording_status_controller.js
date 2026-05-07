@@ -47,12 +47,20 @@ export default class extends Controller {
     }
 
     applyTitle(data) {
-        if (!data.title || !this.hasTitleTarget) return
-        if (this.titleTarget.textContent === data.title) return
-        this.titleTarget.textContent = data.title
+        if (!this.hasTitleTarget) return
+        const status = data.status ?? this.statusValue
+        const display = this.computeDisplayTitle(data.title, status)
+        if (this.titleTarget.textContent === display) return
+        this.titleTarget.textContent = display
         if (document.title.endsWith(' - Braindump')) {
-            document.title = `${data.title} - Braindump`
+            document.title = `${display} - Braindump`
         }
+    }
+
+    computeDisplayTitle(title, status) {
+        if (title && title.trim() !== '') return title
+        if (status === 'pending' || status === 'transcribing') return 'Generating title…'
+        return 'Untitled'
     }
 
     async refreshContent() {

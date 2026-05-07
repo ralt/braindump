@@ -39,7 +39,7 @@
                 <tbody>
                     {% for recording in recordings %}
                         <tr>
-                            <td><a href="{{ path('app_recording_show', {id: recording.id}) }}" data-turbo-frame="_top">{{ recording.title ?: 'Untitled' }}</a></td>
+                            <td><a href="{{ path('app_recording_show', {id: recording.id}) }}" data-turbo-frame="_top">{{ recording.displayTitle }}</a></td>
                             <td><span class="badge badge-{{ recording.status.value }}">{{ recording.status.value }}</span></td>
                             <td class="text-muted">{{ recording.owner.displayName }}</td>
                             <td class="text-muted">{{ recording.createdAt|date('Y-m-d H:i') }}</td>
