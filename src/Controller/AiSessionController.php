@@ -35,7 +35,7 @@ class AiSessionController extends AbstractController
     ) {}
 
     #[Route('/api/recordings/{id}/ai-chat/start', name: 'api_ai_chat_start', methods: ['POST'])]
-    public function startChat(Recording $recording): JsonResponse
+    public function startChat(Recording $recording, Request $request): JsonResponse
     {
         $this->denyAccessUnlessGranted('RECORDING_AI_SESSION', $recording);
 
@@ -52,6 +52,18 @@ class AiSessionController extends AbstractController
                 ->setRecording($recording)
                 ->setUser($user);
             $this->em->persist($session);
+
+            // Pre-activate any skills the user picked on the start card so the
+            // auto-fired first turn already runs with them in the system prompt.
+            $data = json_decode($request->getContent(), true);
+            $requestedIds = array_map('strval', (array) (($data['skillIds'] ?? [])));
+            foreach ($requestedIds as $skillId) {
+                $skill = $this->skills->find($skillId);
+                if ($skill instanceof Skill && $skill->getUser()->getId()->equals($user->getId())) {
+                    $session->addActiveSkill($skill);
+                }
+            }
+
             $this->em->flush();
         }
 

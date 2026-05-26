@@ -11,6 +11,25 @@
                      startUrl: path('api_ai_chat_start', {id: recording.id})
                  }) }}>
                 <p class="text-muted mb-1">Start a writing session with this transcript and ask the AI to rewrite, tighten, or restructure it.</p>
+                {% if skills|default([]) is not empty %}
+                    <div class="chat-start-skills">
+                        <button type="button" class="chat-start-skills-toggle"
+                                {{ stimulus_action('chat-starter', 'toggleSkills') }}>
+                            Skills<span class="chat-skills-count" {{ stimulus_target('chat-starter', 'count') }}></span>
+                        </button>
+                        <div class="chat-start-skills-panel hidden" {{ stimulus_target('chat-starter', 'panel') }}>
+                            {% for skill in skills %}
+                                <label class="chat-skill-row">
+                                    <input type="checkbox"
+                                           value="{{ skill.id }}"
+                                           {{ stimulus_target('chat-starter', 'skill') }}
+                                           {{ stimulus_action('chat-starter', 'refreshCount', 'change') }}>
+                                    <span class="chat-skill-name">{{ skill.name }}</span>
+                                </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endif %}
                 <button type="button" class="btn btn-primary"
                         {{ stimulus_target('chat-starter', 'button') }}
                         {{ stimulus_action('chat-starter', 'start') }}>Start AI chat</button>
