@@ -6,8 +6,8 @@ use App\Entity\Recording;
 use App\Enum\RecordingStatus;
 use App\Message\TranscribeRecordingMessage;
 use App\Search\SearchProviderInterface;
+use App\Transcription\TranscriberInterface;
 use Doctrine\ORM\EntityManagerInterface;
-use Symfony\AI\Platform\Message\Content\Audio;
 use Symfony\AI\Platform\Message\Content\Text;
 use Symfony\AI\Platform\Message\MessageBag;
 use Symfony\AI\Platform\Message\SystemMessage;
@@ -22,6 +22,7 @@ final class TranscribeRecordingHandler
 {
     public function __construct(
         private EntityManagerInterface $em,
+        private TranscriberInterface $transcriber,
         private PlatformInterface $platform,
         private HubInterface $hub,
         private SearchProviderInterface $searchProvider,
@@ -41,19 +42,20 @@ final class TranscribeRecordingHandler
 
         try {
             $audioPath = $this->audioStoragePath . '/' . $recording->getAudioFilePath();
-            $audio = Audio::fromFile($audioPath);
 
-            $result = $this->platform->invoke('whisper-1', $audio);
-            $text = $result->asText();
+            $text = $this->transcriber->transcribe($audioPath);
 
             $recording->setTranscription($text);
             $recording->setStatus(RecordingStatus::Completed);
 
             if ($recording->getTitle() === '' && $text !== '') {
-                $generated = $this->generateTitle($text);
-                if ($generated !== '') {
-                    $recording->setTitle($generated);
+                // Prefer an LLM-generated title; fall back to a heuristic so recordings are
+                // still titled when no LLM is configured (the zero-key default).
+                $title = $this->generateTitle($text);
+                if ($title === '') {
+                    $title = $this->fallbackTitle($text);
                 }
+                $recording->setTitle($title);
             }
         } catch (\Throwable $e) {
             $recording->setStatus(RecordingStatus::Failed);
@@ -99,5 +101,24 @@ final class TranscribeRecordingHandler
         } catch (\Throwable) {
             return '';
         }
+    }
+
+    /**
+     * Derive a title from the transcript itself — used when no LLM is available. Takes the
+     * opening words so the recording is at least recognizable in the list.
+     */
+    private function fallbackTitle(string $transcript): string
+    {
+        $words = preg_split('/\s+/', trim($transcript), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        if ($words === []) {
+            return '';
+        }
+
+        $title = implode(' ', \array_slice($words, 0, 8));
+        if (\count($words) > 8) {
+            $title .= '…';
+        }
+
+        return mb_substr($title, 0, 100);
     }
 }
