@@ -163,14 +163,13 @@ tasks:
     run:
       command: |
         set -e
-        # Diagnostics (remove once email is confirmed). The docs say .environment runs
-        # "when the container starts", but don't say whether that covers task containers,
-        # and we don't yet know if tasks are even given PLATFORM_SMTP_HOST. Echo before and
-        # after a manual source to settle both: if "before" already shows MAILER_DSN, the
-        # task auto-sources; if PLATFORM_SMTP_HOST is UNSET in both, tasks get no SMTP.
-        echo "[ci-task] before: PLATFORM_SMTP_HOST=[${PLATFORM_SMTP_HOST:-UNSET}] MAILER_DSN=[${MAILER_DSN:-UNSET}]"
         [ -f .environment ] && . ./.environment
-        echo "[ci-task] after:  PLATFORM_SMTP_HOST=[${PLATFORM_SMTP_HOST:-UNSET}] MAILER_DSN=[${MAILER_DSN:-UNSET}]"
+        # Diagnostic (remove once email is confirmed). We know the task has a relay
+        # MAILER_DSN, but notify()'s result is hidden — the task run log truncates after
+        # "Creating branch...". Probe the real send HERE, before app:ci-run, where output is
+        # captured, to prove whether this container can actually reach the relay.
+        echo "[ci-task] MAILER_DSN=[${MAILER_DSN:-UNSET}]"
+        php bin/console app:mail-test || true
         php bin/console app:ci-run
       timeout: 7200
 
