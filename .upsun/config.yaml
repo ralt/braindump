@@ -128,6 +128,13 @@ tasks:
     relationships:
       database: 'db:postgresql'
 
+    # Symfony needs a writable /var (cache + logs) at runtime — the image filesystem is
+    # read-only. CI orchestration keeps nothing between runs, so an ephemeral tmp mount
+    # is enough (writable, auto-allocated, no resources:set needed). A private mount also
+    # avoids colliding with the production app's /var.
+    mounts:
+      '/var': { source: tmp, source_path: var }
+
     # No `env: view` authorization on purpose — the task does NOT inherit the project's
     # secrets ambiently. app:ci-trigger injects exactly the variables ci-run needs into
     # each run's payload instead (PLATFORM_* vars are always provided automatically).
