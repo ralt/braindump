@@ -24,8 +24,8 @@ services:
     image: dunglas/mercure
     restart: unless-stopped
     environment:
-      # Uncomment the following line to disable HTTPS,
-      #SERVER_NAME: ':80'
+      # Serve plain HTTP on :80 so the app can reverse-proxy the hub same-origin.
+      SERVER_NAME: ':80'
       MERCURE_PUBLISHER_JWT_KEY: '!ChangeThisMercureHubJWTSecretKey!'
       MERCURE_SUBSCRIBER_JWT_KEY: '!ChangeThisMercureHubJWTSecretKey!'
       # Set the URL of your Symfony project (without trailing slash!) as value of the cors_origins directive
@@ -34,7 +34,7 @@ services:
     # Comment the following line to disable the development mode
     command: /usr/bin/caddy run --config /etc/caddy/dev.Caddyfile
     healthcheck:
-      test: ["CMD", "curl", "-f", "https://localhost/healthz"]
+      test: ["CMD", "curl", "-f", "http://localhost/healthz"]
       timeout: 5s
       retries: 5
       start_period: 60s
@@ -43,10 +43,71 @@ services:
       - mercure_config:/config
 ###< symfony/mercure-bundle ###
 
+  # The Braindump app. `docker compose up` builds this and serves a working instance on
+  # http://localhost:8000 — on-device Whisper transcription, bundled Postgres and Mercure,
+  # a seeded demo login. No API keys required.
+  app:
+    build: .
+    image: braindump:local
+    depends_on:
+      database:
+        condition: service_healthy
+      mercure:
+        condition: service_started
+    environment:
+      APP_ENV: prod
+      APP_SECRET: ${APP_SECRET:-change-me-in-production}
+      RUN_MIGRATIONS: "1"
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-!ChangeMe!}@database:5432/${POSTGRES_DB:-app}?serverVersion=${POSTGRES_VERSION:-16}&charset=utf8"
+      MERCURE_URL: "http://mercure/.well-known/mercure"
+      MERCURE_PUBLIC_URL: "/.well-known/mercure"
+      MERCURE_JWT_SECRET: "!ChangeThisMercureHubJWTSecretKey!"
+      # On-device transcription (no API key). Set TRANSCRIBER=openai + OPENAI_API_KEY to
+      # use the hosted Whisper API instead.
+      TRANSCRIBER: local
+      WHISPER_CLI: whisper-cli
+      WHISPER_MODEL: /models/ggml-base.en.bin
+      FFMPEG_BINARY: ffmpeg
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      SEARCH_PROVIDER: database
+      MAILER_DSN: "null://null"
+    ports:
+      - "8000:80"
+    volumes:
+      - app_var:/app/var
+      - audio_storage:/app/storage/audio
+
+  # Background transcription worker — same image, consumes the async queue and shares the
+  # audio volume with the app.
+  worker:
+    image: braindump:local
+    depends_on:
+      app:
+        condition: service_started
+    command: ["php", "bin/console", "messenger:consume", "async", "--time-limit=3600", "--memory-limit=256M"]
+    environment:
+      APP_ENV: prod
+      APP_SECRET: ${APP_SECRET:-change-me-in-production}
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-!ChangeMe!}@database:5432/${POSTGRES_DB:-app}?serverVersion=${POSTGRES_VERSION:-16}&charset=utf8"
+      MERCURE_URL: "http://mercure/.well-known/mercure"
+      MERCURE_PUBLIC_URL: "/.well-known/mercure"
+      MERCURE_JWT_SECRET: "!ChangeThisMercureHubJWTSecretKey!"
+      TRANSCRIBER: local
+      WHISPER_CLI: whisper-cli
+      WHISPER_MODEL: /models/ggml-base.en.bin
+      FFMPEG_BINARY: ffmpeg
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      SEARCH_PROVIDER: database
+    volumes:
+      - app_var:/app/var
+      - audio_storage:/app/storage/audio
+
 volumes:
 ###> doctrine/doctrine-bundle ###
   database_data:
 ###< doctrine/doctrine-bundle ###
+  app_var:
+  audio_storage:
 
 ###> symfony/mercure-bundle ###
   mercure_data:
