@@ -155,7 +155,7 @@ Set environment variables via `upsun variable:create`.
 
 ## Tech Stack
 
-- **Symfony 7.4** with PHP 8.4
+- **Symfony** web framework
 - **Symfony AI** (OpenAI Whisper) for speech-to-text
 - **Symfony Messenger** for async transcription
 - **Mercure** for real-time SSE (transcription status + AI reply streaming)

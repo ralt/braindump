@@ -170,9 +170,21 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this;
     }
 
+    #[\Deprecated]
     public function eraseCredentials(): void
     {
-        $this->plainPassword = null;
+        // No-op: erasure of the transient plain password is handled in __serialize().
+    }
+
+    /**
+     * Keep the transient plain password out of the serialized session payload.
+     */
+    public function __serialize(): array
+    {
+        $data = (array) $this;
+        unset($data["\0".self::class."\0plainPassword"]);
+
+        return $data;
     }
 
     public function __toString(): string
