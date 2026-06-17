@@ -6,6 +6,30 @@ export default class extends Controller {
 
     pendingSave = null
 
+    connect() {
+        // Close on a click anywhere outside the toggle/panel, and on Escape.
+        // Document-level listeners work regardless of where focus is (clicking a
+        // <button> doesn't focus it in Firefox/Safari, so focusout is unreliable).
+        this.closeOnOutsideClick = (event) => {
+            if (this.panelTarget.classList.contains('hidden')) return
+            if (this.toggleTarget.contains(event.target)) return
+            if (this.panelTarget.contains(event.target)) return
+            this.panelTarget.classList.add('hidden')
+        }
+        this.closeOnEscape = (event) => {
+            if (event.key !== 'Escape' || this.panelTarget.classList.contains('hidden')) return
+            this.panelTarget.classList.add('hidden')
+            this.toggleTarget.focus()
+        }
+        document.addEventListener('click', this.closeOnOutsideClick)
+        document.addEventListener('keydown', this.closeOnEscape)
+    }
+
+    disconnect() {
+        document.removeEventListener('click', this.closeOnOutsideClick)
+        document.removeEventListener('keydown', this.closeOnEscape)
+    }
+
     togglePanel(event) {
         event.preventDefault()
         this.panelTarget.classList.toggle('hidden')

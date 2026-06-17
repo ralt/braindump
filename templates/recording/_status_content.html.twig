@@ -14,6 +14,7 @@
                 {% if skills|default([]) is not empty %}
                     <div class="chat-start-skills">
                         <button type="button" class="chat-start-skills-toggle"
+                                {{ stimulus_target('chat-starter', 'toggle') }}
                                 {{ stimulus_action('chat-starter', 'toggleSkills') }}>
                             Skills<span class="chat-skills-count" {{ stimulus_target('chat-starter', 'count') }}></span>
                         </button>
