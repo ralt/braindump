@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Symfony 7.4 / PHP 8.4 speech-to-text web app. Browser audio recording, OpenAI Whisper transcription via Symfony AI, PostgreSQL FTS, recording sharing, interactive AI terminal sessions (via pi.dev). Deployed on Upsun.
+Symfony 8.1 / PHP 8.4 speech-to-text web app. Browser audio recording, OpenAI Whisper transcription via Symfony AI, PostgreSQL FTS, interactive AI terminal sessions (via pi.dev). Deployed on Upsun.
 
 ## Subagent Workflow (REQUIRED)
 
