@@ -24,7 +24,6 @@ class CiTriggerCommand extends Command
         private string $ciEmailDomain,
         private string $openAiApiKey,
         private string $appSecret,
-        private string $mailerDsn,
     ) {
         parent::__construct();
     }
@@ -58,10 +57,8 @@ class CiTriggerCommand extends Command
         // variables ambiently. Forward exactly what app:ci-run needs into this run's
         // payload. Run-time variables are grouped by prefix; the "env" group is exposed
         // as environment variables in the task container. (PLATFORM_* vars are injected
-        // automatically; DATABASE_URL is built from the task's own relationship in
-        // .environment.) MAILER_DSN is forwarded from this app's resolved value (the
-        // SMTP relay from .environment) — the task doesn't get PLATFORM_SMTP_HOST, so
-        // without this its notifications would silently go to null://null.
+        // automatically; DATABASE_URL/MAILER_DSN are built from the task's own
+        // relationships/platform vars in .environment.)
         $variables = [
             'env' => [
                 'UPSUN_API_TOKEN' => $this->upsunApiToken,
@@ -69,7 +66,6 @@ class CiTriggerCommand extends Command
                 'CI_EMAIL_DOMAIN' => $this->ciEmailDomain,
                 'OPENAI_API_KEY' => $this->openAiApiKey,
                 'APP_SECRET' => $this->appSecret,
-                'MAILER_DSN' => $this->mailerDsn,
             ],
         ];
 
