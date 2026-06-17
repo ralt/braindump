@@ -54,6 +54,7 @@ services:
             $ciEmailDomain: '%env(CI_EMAIL_DOMAIN)%'
             $openAiApiKey: '%env(OPENAI_API_KEY)%'
             $appSecret: '%env(APP_SECRET)%'
+            $mailerDsn: '%env(MAILER_DSN)%'
 
 when@prod:
     services:
