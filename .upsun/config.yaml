@@ -39,11 +39,17 @@ applications:
       post_deploy: |
         set -e
         if [ "$PLATFORM_ENVIRONMENT_TYPE" != "production" ]; then
-          # APP_ENV must be set as a real env var here: the platform exports APP_ENV=prod
-          # (and composer dump-env bakes it into .env.local.php), which overrides phpunit's
-          # `<server name="APP_ENV" value="test" force="true">`, so tests would otherwise
-          # boot the prod kernel (no framework.test -> "test.service_container" missing).
-          APP_ENV=test php bin/phpunit --colors=never
+          # Tests run in the test kernel against this branch's real postgres DB (the suite
+          # resets the schema and clears data, so the ephemeral CI branch's DB is wiped —
+          # main is never touched). Two overrides are needed versus a plain `php bin/phpunit`:
+          #  - APP_ENV=test: the platform exports APP_ENV=prod (and composer dump-env bakes
+          #    it into .env.local.php), overriding phpunit.dist.xml's `<server ... force>`.
+          #    Without this the prod kernel boots, framework.test is off, and every
+          #    KernelTestCase errors with "test.service_container" missing.
+          #  - --cache-directory: the image filesystem is read-only, so phpunit's default
+          #    cache writes (.phpunit.cache / .phpunit.result.cache at the project root)
+          #    fail and trip failOnWarning. Point them at the writable mount.
+          APP_ENV=test php bin/phpunit --colors=never --cache-directory=var/cache/phpunit
         fi
 
     relationships:
