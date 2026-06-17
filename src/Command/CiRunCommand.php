@@ -15,7 +15,7 @@ use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
-use Symfony\Component\Mailer\MailerInterface;
+use Symfony\Component\Mailer\Transport\TransportInterface;
 use Symfony\Component\Mime\Email;
 
 #[AsCommand(
@@ -26,7 +26,10 @@ class CiRunCommand extends Command
 {
     public function __construct(
         private LoggerInterface $logger,
-        private MailerInterface $mailer,
+        // Inject the transport (not MailerInterface) so CI notifications are sent
+        // synchronously over SMTP from the short-lived task, rather than dispatched to
+        // the async messenger queue (which would depend on the worker to deliver them).
+        private TransportInterface $mailerTransport,
         private PlatformInterface $platform,
         private string $upsunApiToken,
         private string $ciNotificationEmail,
@@ -317,7 +320,7 @@ class CiRunCommand extends Command
                 ->subject('[Braindump CI] ' . $subject)
                 ->text($body);
 
-            $this->mailer->send($email);
+            $this->mailerTransport->send($email);
         } catch (\Throwable $e) {
             $this->logger->error('Failed to send CI notification email', ['error' => $e->getMessage()]);
         }
