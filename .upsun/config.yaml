@@ -47,6 +47,12 @@ applications:
       mercure: 'mercure:mercure'
       vault_kms: 'vault_kms:api-keys'
 
+    # Allow this app (where the weekly_ci cron runs) to trigger the on-demand "ci" task.
+    authorizations:
+      - type: task
+        resource: ci
+        action: operate
+
     mounts:
       '/var': { source: storage, source_path: var }
       '/storage/audio':
@@ -85,10 +91,61 @@ applications:
             source_path: audio
 
     crons:
+      # The cron only *triggers* the on-demand "ci" task (a cheap API call); the actual
+      # branch/test/merge orchestration runs in the dedicated "ci" task container below,
+      # so it doesn't consume production app resources. Upsun tasks cannot be scheduled
+      # directly — a cron is the supported way to run one on a schedule.
       weekly_ci:
         spec: '0 3 * * 1'
         commands:
-          start: php bin/console app:ci-run
+          start: php bin/console app:ci-trigger
+
+tasks:
+  # On-demand container that runs the dependency-update CI. Triggered weekly by the
+  # weekly_ci cron via `app:ci-trigger`. Runs with its own (per-second billed)
+  # resources instead of borrowing from the production app container.
+  ci:
+    type: 'php:8.4'
+    source:
+      root: '/'
+
+    dependencies:
+      php:
+        composer/composer: '^2'
+
+    runtime:
+      extensions:
+        - pdo_pgsql
+        - sodium
+        - intl
+        - mbstring
+        - ctype
+        - iconv
+        - xsl
+
+    # DATABASE_URL/MAILER_DSN are derived from these in .environment; the command itself
+    # only orchestrates the Upsun API, but the Symfony kernel needs them to boot in prod.
+    relationships:
+      database: 'db:postgresql'
+
+    # No `env: view` authorization on purpose — the task does NOT inherit the project's
+    # secrets ambiently. app:ci-trigger injects exactly the variables ci-run needs into
+    # each run's payload instead (PLATFORM_* vars are always provided automatically).
+
+    hooks:
+      build: |
+        set -e
+        curl -fs https://get.symfony.com/cloud/configurator | bash
+        symfony-build
+
+    variables:
+      env:
+        APP_ENV: prod
+        SEARCH_PROVIDER: postgres
+
+    run:
+      command: php bin/console app:ci-run
+      timeout: 7200
 
 services:
   db:

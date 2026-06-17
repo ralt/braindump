@@ -74,7 +74,7 @@ class CiRunCommand extends Command
             // 0. Sweep any stale ci-test-* environments left over from prior runs so we
             // never accumulate them on the project. Only the new branch we're about to
             // create will remain after this command finishes.
-            $this->cleanupOldCiEnvironments($project, $io);
+            $this->cleanupOldCiEnvironments($project, $connector, $io);
 
             // 1. Create branch
             $io->info('Creating branch...');
@@ -198,11 +198,7 @@ class CiRunCommand extends Command
             try {
                 $ciEnv = $project->getEnvironment($branchName);
                 if ($ciEnv !== false) {
-                    if ($ciEnv->isActive()) {
-                        $ciEnv->deactivate()->wait(null, null, 5);
-                        $ciEnv->refresh();
-                    }
-                    $ciEnv->delete();
+                    $this->deleteEnvironment($ciEnv, $connector);
                 }
             } catch (\Throwable) {
                 // ignore cleanup failures
@@ -212,7 +208,7 @@ class CiRunCommand extends Command
         }
     }
 
-    private function cleanupOldCiEnvironments(mixed $project, SymfonyStyle $io): void
+    private function cleanupOldCiEnvironments(mixed $project, Connector $connector, SymfonyStyle $io): void
     {
         foreach ($project->getEnvironments() as $env) {
             $name = $env->name ?? $env->id ?? '';
@@ -221,11 +217,7 @@ class CiRunCommand extends Command
             }
             $io->info(sprintf('Cleaning up stale CI environment: %s', $name));
             try {
-                if (method_exists($env, 'isActive') && $env->isActive()) {
-                    $env->deactivate()->wait(null, null, 5);
-                    $env->refresh();
-                }
-                $env->delete();
+                $this->deleteEnvironment($env, $connector);
             } catch (\Throwable $e) {
                 // Best-effort — keep going so we still proceed with the new run.
                 $this->logger->warning('Failed to delete stale CI environment', [
@@ -234,6 +226,34 @@ class CiRunCommand extends Command
                 ]);
             }
         }
+    }
+
+    /**
+     * Delete an environment, handling the 'paused' state.
+     *
+     * The platformsh client's isActive() treats only status === 'active' as active, so
+     * deactivate() refuses to act on a 'paused' environment — yet the API will not delete
+     * a non-inactive environment either. Paused leftovers therefore accumulated. We hit
+     * the #deactivate operation directly (paused environments still expose it) and poll
+     * until the environment reports inactive before deleting.
+     */
+    private function deleteEnvironment(object $env, Connector $connector): void
+    {
+        $env->refresh();
+
+        if ((string) ($env->status ?? '') !== 'inactive' && $env->hasLink('#deactivate')) {
+            $connector->getClient()->post($env->getLink('#deactivate'));
+
+            for ($i = 0; $i < 60; ++$i) {
+                sleep(5);
+                $env->refresh();
+                if ((string) ($env->status ?? '') === 'inactive') {
+                    break;
+                }
+            }
+        }
+
+        $env->delete();
     }
 
     private function mergeAndCleanup(mixed $ciEnv, SymfonyStyle $io): void

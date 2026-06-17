@@ -47,6 +47,14 @@ services:
             $ciNotificationEmail: '%env(CI_NOTIFICATION_EMAIL)%'
             $ciEmailDomain: '%env(CI_EMAIL_DOMAIN)%'
 
+    App\Command\CiTriggerCommand:
+        arguments:
+            $upsunApiToken: '%env(UPSUN_API_TOKEN)%'
+            $ciNotificationEmail: '%env(CI_NOTIFICATION_EMAIL)%'
+            $ciEmailDomain: '%env(CI_EMAIL_DOMAIN)%'
+            $openAiApiKey: '%env(OPENAI_API_KEY)%'
+            $appSecret: '%env(APP_SECRET)%'
+
 when@prod:
     services:
         App\Service\ApiKeyEncryptorInterface:
