@@ -73,6 +73,15 @@ services:
       MAILER_DSN: "null://null"
     ports:
       - "8000:80"
+    # Port 80 only opens after the entrypoint finishes migrating, so this also gates the
+    # worker below (it waits for service_healthy) — preventing the worker's messenger
+    # transport from racing the app's migrations to create messenger_messages.
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(@fsockopen('127.0.0.1', 80) ? 0 : 1);"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 120s
     volumes:
       - app_var:/app/var
       - audio_storage:/app/storage/audio
@@ -83,7 +92,10 @@ services:
     image: braindump:local
     depends_on:
       app:
-        condition: service_started
+        condition: service_healthy
+    # No HTTP server here, so disable the image's inherited healthcheck.
+    healthcheck:
+      test: ["NONE"]
     command: ["php", "bin/console", "messenger:consume", "async", "--time-limit=3600", "--memory-limit=256M"]
     environment:
       APP_ENV: prod
