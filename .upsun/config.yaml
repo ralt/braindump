@@ -161,7 +161,17 @@ tasks:
         SEARCH_PROVIDER: postgres
 
     run:
-      command: php bin/console app:ci-run
+      command: |
+        set -e
+        # Diagnostics (remove once email is confirmed). The docs say .environment runs
+        # "when the container starts", but don't say whether that covers task containers,
+        # and we don't yet know if tasks are even given PLATFORM_SMTP_HOST. Echo before and
+        # after a manual source to settle both: if "before" already shows MAILER_DSN, the
+        # task auto-sources; if PLATFORM_SMTP_HOST is UNSET in both, tasks get no SMTP.
+        echo "[ci-task] before: PLATFORM_SMTP_HOST=[${PLATFORM_SMTP_HOST:-UNSET}] MAILER_DSN=[${MAILER_DSN:-UNSET}]"
+        [ -f .environment ] && . ./.environment
+        echo "[ci-task] after:  PLATFORM_SMTP_HOST=[${PLATFORM_SMTP_HOST:-UNSET}] MAILER_DSN=[${MAILER_DSN:-UNSET}]"
+        php bin/console app:ci-run
       timeout: 7200
 
 services:
