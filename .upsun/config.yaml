@@ -39,7 +39,11 @@ applications:
       post_deploy: |
         set -e
         if [ "$PLATFORM_ENVIRONMENT_TYPE" != "production" ]; then
-          php bin/phpunit --colors=never
+          # APP_ENV must be set as a real env var here: the platform exports APP_ENV=prod
+          # (and composer dump-env bakes it into .env.local.php), which overrides phpunit's
+          # `<server name="APP_ENV" value="test" force="true">`, so tests would otherwise
+          # boot the prod kernel (no framework.test -> "test.service_container" missing).
+          APP_ENV=test php bin/phpunit --colors=never
         fi
 
     relationships:
