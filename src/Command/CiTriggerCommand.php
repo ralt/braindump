@@ -2,6 +2,7 @@
 
 namespace App\Command;
 
+use GuzzleHttp\Exception\RequestException;
 use Platformsh\Client\Connection\Connector;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -54,24 +55,31 @@ class CiTriggerCommand extends Command
 
         // The task has no `env: view` authorization, so it can't read the project's
         // variables ambiently. Forward exactly what app:ci-run needs into this run's
-        // payload; Upsun exposes each as a plain environment variable in the container.
-        // (PLATFORM_PROJECT and other PLATFORM_* vars are injected automatically;
-        // DATABASE_URL/MAILER_DSN are built from relationships in .environment.)
+        // payload. Run-time variables are grouped by prefix; the "env" group is exposed
+        // as environment variables in the task container. (PLATFORM_* vars are injected
+        // automatically; DATABASE_URL/MAILER_DSN are built from relationships in
+        // .environment.)
         $variables = [
-            'UPSUN_API_TOKEN' => $this->upsunApiToken,
-            'CI_NOTIFICATION_EMAIL' => $this->ciNotificationEmail,
-            'CI_EMAIL_DOMAIN' => $this->ciEmailDomain,
-            'OPENAI_API_KEY' => $this->openAiApiKey,
-            'APP_SECRET' => $this->appSecret,
+            'env' => [
+                'UPSUN_API_TOKEN' => $this->upsunApiToken,
+                'CI_NOTIFICATION_EMAIL' => $this->ciNotificationEmail,
+                'CI_EMAIL_DOMAIN' => $this->ciEmailDomain,
+                'OPENAI_API_KEY' => $this->openAiApiKey,
+                'APP_SECRET' => $this->appSecret,
+            ],
         ];
 
         try {
             $connector->getClient()->post($url, ['json' => ['variables' => $variables]]);
         } catch (\Throwable $e) {
-            $io->error('Failed to trigger CI task: ' . $e->getMessage());
+            $detail = $e->getMessage();
+            if ($e instanceof RequestException && $e->hasResponse()) {
+                $detail = (string) $e->getResponse()->getBody();
+            }
+            $io->error('Failed to trigger CI task: ' . $detail);
             $this->logger->error('Failed to trigger CI task', [
                 'environment' => $environment,
-                'error' => $e->getMessage(),
+                'error' => $detail,
             ]);
             return Command::FAILURE;
         }
