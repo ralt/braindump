@@ -7,10 +7,14 @@ applications:
         update-dependencies:
           command: |
             set -e
-            composer update --lock --no-interaction
+            # Capture Composer's output so the commit message can list exactly what changed
+            # (no LLM): its "Lock file operations" lines are the source of the message body.
+            out="$(composer update --no-interaction 2>&1)"
+            printf '%s\n' "$out"
             if ! git diff --quiet composer.lock; then
+              changes="$(printf '%s\n' "$out" | sed -nE 's/^[[:space:]]*- (Upgrading|Downgrading|Locking|Removing) (.+)$/  - \1 \2/p')"
               git add composer.lock
-              git commit -m "Update composer.lock"
+              git commit -m "Update Composer dependencies" -m "${changes:-Refreshed composer.lock}"
             fi
 
     build:
