@@ -9,6 +9,7 @@
 parameters:
     app.audio_storage_path: '%kernel.project_dir%/storage/audio'
     app.oidc_enabled: '%env(bool:OIDC_ENABLED)%'
+    app.whisper_model_dir: '%kernel.project_dir%/var/whisper'
 
 services:
     # default configuration for services in *this* file
@@ -40,6 +41,20 @@ services:
 
     App\Search\SearchProviderInterface:
         factory: ['@App\Search\SearchProviderFactory', 'create']
+
+    App\Transcription\TranscriberFactory:
+        arguments:
+            $transcriber: '%env(TRANSCRIBER)%'
+            $whisperBinary: '%env(WHISPER_CLI)%'
+            $whisperModel: '%env(resolve:WHISPER_MODEL)%'
+            $ffmpegBinary: '%env(FFMPEG_BINARY)%'
+
+    App\Transcription\TranscriberInterface:
+        factory: ['@App\Transcription\TranscriberFactory', 'create']
+
+    App\Command\DownloadWhisperModelCommand:
+        arguments:
+            $whisperModelDir: '%app.whisper_model_dir%'
 
     App\Command\CiRunCommand:
         arguments:

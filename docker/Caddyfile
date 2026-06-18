@@ -1,0 +1,18 @@
+{
+	# No public TLS in the local container — Compose terminates on http://localhost.
+	auto_https off
+	frankenphp
+}
+
+:80 {
+	root * public/
+	encode zstd br gzip
+
+	# Same-origin Mercure: proxy the hub through the app so the browser needs no CORS
+	# and no separate port (mirrors the production routing).
+	handle /.well-known/mercure* {
+		reverse_proxy mercure:80
+	}
+
+	php_server
+}

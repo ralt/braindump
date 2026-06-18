@@ -1,0 +1,15 @@
+.git
+.github
+var/cache/*
+var/log/*
+var/data*.db
+var/whisper/*
+storage/audio/*
+node_modules
+vendor
+.env.local
+.env.*.local
+.phpunit.cache
+.phpunit.result.cache
+docs
+*.md

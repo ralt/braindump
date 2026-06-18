@@ -2,14 +2,14 @@
 
 Braindump is not a quick voice memo app. It's for the longer stuff — the 5-minute explanation of an architecture you're considering, the 15-minute walkthrough of a problem you're stuck on, the detailed brain dump you do when you need to get everything out of your head and into something searchable. The name is literal: dump your brain, then work with what comes out.
 
-Record audio in your browser, get it transcribed via OpenAI Whisper, search across all your transcriptions, and refine the text with an inline AI rewriting chat. Built with Symfony, deployed on Upsun.
+Record audio in your browser, get it transcribed **on-device** (a local Whisper model — no API key, nothing leaves your machine), search across all your transcriptions, and refine the text with an inline AI rewriting chat. Runs fully local out of the box; add hosted services (OpenAI, PostgreSQL, SSO…) only when you want them. Built with Symfony, deployed on Upsun.
 
 ![Inline rewriting chat — the transcript becomes the first user message, and the assistant streams its reply via Mercure.](docs/recording-ai-chat.png)
 
 ## Features
 
 - **Audio Recording** — Record directly from the browser with microphone selection. Up to 25MB per recording (the OpenAI Whisper file size limit).
-- **Automatic Transcription** — Audio is transcribed in the background via OpenAI Whisper through Symfony AI. If the user left the title field blank, gpt-4.1-mini generates a short descriptive title from the transcript and the page header updates live via Mercure.
+- **Automatic Transcription** — Audio is transcribed in the background. By default a local Whisper model (whisper.cpp) runs on-device with no API key; set `TRANSCRIBER=openai` to use the hosted OpenAI Whisper API instead. If the user left the title field blank, an LLM generates a short descriptive title when one is configured — otherwise the title falls back to the transcript's opening words. Status updates live via Mercure.
 - **Full-Text Search** — PostgreSQL full-text search across titles and transcriptions, with configurable OpenSearch backend.
 - **Rewriting Chat** — On the recording page, the transcript is fed to an AI assistant scoped to rewriting/editing. Stream replies appear inline, history persists across reloads, and there's a voice-input button (with mic device picker) for quick refinements. Supports multiple providers (Anthropic, OpenAI, Google, Groq, Mistral, DeepSeek, xAI, OpenRouter). Each user provides their own API key, stored encrypted via Upsun Vault KMS.
 - **Skills** — Reusable context documents (tone guidelines, writing rules, persona definitions, domain knowledge) you define once on `/skills` and toggle on per chat. Activated skills get concatenated into the system prompt for every assistant call in that conversation — invisible in the message stream, but they shape every reply. Per-user, with a `(session, skill)` join table tracking which are active in each conversation.
@@ -42,92 +42,80 @@ Each user provides their own AI provider API key for the rewriting chat. These k
 
 Symfony Messenger needs a transport for async messages. The simplest option is Doctrine transport with PostgreSQL, which reuses the existing database — no additional service to provision, configure, or pay for. PostgreSQL's LISTEN/NOTIFY mechanism provides efficient push-based message delivery (the worker wakes up immediately when a message arrives, rather than polling on a timer). For the throughput this application needs, it's more than sufficient. RabbitMQ or Redis can be swapped in later if needed by changing a single DSN.
 
-## Local Development Setup
+## Try it in one command (Docker)
 
-### Prerequisites
+No PHP, no PostgreSQL, no API keys — just Docker.
 
-- PHP 8.4 with extensions: pdo_pgsql, sodium, intl, mbstring, xml
-- Composer 2
-- PostgreSQL 16
-- Symfony CLI (optional, for `symfony server:start`)
+```bash
+git clone <repo-url>
+cd braindump
+docker compose up --build
+```
 
-### Installation
+Open <http://localhost:8000> and log in with the seeded demo account:
+
+- **Email:** `admin@example.com`
+- **Password:** `password`
+
+That's the whole app — record audio, get it transcribed **on-device** (local Whisper, no key), search, and start a rewriting chat (the chat itself needs an AI provider key; see [Add services as you grow](#add-services-as-you-grow)). The first build compiles whisper.cpp and downloads a model, so it takes a few minutes; later starts are quick. Compose bundles PostgreSQL and Mercure automatically.
+
+## Run it locally without Docker
+
+Minimum to boot the app: **PHP 8.4 + Composer**. SQLite is the default database, so PostgreSQL is *not* required.
 
 ```bash
 git clone <repo-url>
 cd braindump
 composer install
-```
-
-### Configuration
-
-Copy `.env` to `.env.local` and configure:
-
-```bash
-# Database
-DATABASE_URL="postgresql://user:password@127.0.0.1:5432/braindump?serverVersion=16&charset=utf8"
-
-# OpenAI (for transcription)
-OPENAI_API_KEY=sk-...
-
-# Mercure (local dev — run the Mercure binary separately, see below)
-MERCURE_URL=http://localhost:3000/.well-known/mercure
-MERCURE_PUBLIC_URL=http://localhost:3000/.well-known/mercure
-MERCURE_JWT_SECRET=your-secret-here
-
-# Search (default: postgres)
-SEARCH_PROVIDER=postgres
-```
-
-### Database Setup
-
-```bash
-php bin/console doctrine:database:create
 php bin/console doctrine:migrations:migrate
+php bin/console app:create-user you@example.com password "You" --admin
+symfony server:start                 # or: php -S localhost:8000 -t public
 ```
 
-### Create an Admin User
+To enable transcription, install **ffmpeg** and **whisper.cpp** (both on your `PATH`; override with `FFMPEG_BINARY` / `WHISPER_CLI`), download a model, and run the worker plus the Mercure hub for live updates:
 
 ```bash
-php bin/console app:create-user  # or create via EasyAdmin after first login
-```
-
-Or use EasyAdmin at `/admin` (you'll need to insert an admin user directly into the database for the first time).
-
-### Running
-
-```bash
-# Web server
-symfony server:start
-
-# Local Mercure hub (required for chat streaming + transcription status)
+php bin/console app:whisper:download              # base.en (~140 MB); try tiny.en/small too
 ./mercure run --config Caddyfile.mercure --adapter caddyfile
-
-# Transcription worker
-php bin/console messenger:consume async --time-limit=3600
-
-# CI run (manually trigger dependency update + test cycle on Upsun)
-php bin/console app:ci-run
+php bin/console messenger:consume async           # transcription worker
 ```
 
-### Running Tests
+Running the tests:
 
 ```bash
 php bin/phpunit
 ```
 
+## Add services as you grow
+
+Braindump runs fully local by default. Everything below is **opt-in** — enable it when you want it, in any order. Put secrets in `.env.local` (gitignored), never in `.env`.
+
+| Want… | Set | Notes |
+|---|---|---|
+| **Faster / more accurate transcription** | `TRANSCRIBER=openai` + `OPENAI_API_KEY` | Uses the hosted OpenAI Whisper API instead of the local model. |
+| **AI rewriting chat & LLM titles** | `OPENAI_API_KEY` (plus each user's own provider key, set in app settings) | Without an LLM, recordings are titled from their opening words. |
+| **PostgreSQL** | `DATABASE_URL=postgresql://…` | Default is SQLite. The Docker setup uses the bundled Postgres. |
+| **OpenSearch full-text search** | `SEARCH_PROVIDER=opensearch` + `OPENSEARCH_URL` | Default `database` auto-detects SQLite vs PostgreSQL — no extra service. |
+| **Enterprise SSO (OIDC)** | `OIDC_ENABLED=1` + `OIDC_*` | Adds "Sign in with SSO" next to form login. |
+| **Encrypted per-user API keys (Vault KMS)** | *(Upsun only)* | Locally, keys are encrypted with `APP_SECRET`; production uses Upsun Vault KMS. |
+
 ## Environment Variables
 
 | Variable | Description | Default |
 |---|---|---|
-| `DATABASE_URL` | PostgreSQL connection string | — |
-| `OPENAI_API_KEY` | OpenAI API key (Whisper transcription, CI failure analysis) | — |
+| `TRANSCRIBER` | Transcription backend: `local` (whisper.cpp, on-device) or `openai` (hosted API) | `local` |
+| `WHISPER_CLI` | Path to the whisper.cpp CLI binary (used when `TRANSCRIBER=local`) | `whisper-cli` |
+| `WHISPER_MODEL` | Path to the ggml model file | `var/whisper/ggml-base.en.bin` |
+| `FFMPEG_BINARY` | Path to ffmpeg (transcodes recordings to 16 kHz WAV for whisper.cpp) | `ffmpeg` |
+| `DATABASE_URL` | Database DSN (SQLite by default; set a `postgresql://…` URL to use Postgres) | SQLite (`var/data.db`) |
+| `OPENAI_API_KEY` | **Optional.** Hosted Whisper (`TRANSCRIBER=openai`), LLM titles, AI chat, CI failure analysis | — |
 | `MERCURE_URL` | Mercure hub URL (server-side) | — |
 | `MERCURE_PUBLIC_URL` | Mercure hub URL (browser-side) | — |
 | `MERCURE_JWT_SECRET` | JWT secret for Mercure | — |
-| `SEARCH_PROVIDER` | Search backend: `postgres` or `opensearch` | `postgres` |
+| `SEARCH_PROVIDER` | Search backend: `database` (auto SQLite/Postgres) or `opensearch` | `database` |
 | `OPENSEARCH_URL` | OpenSearch/Elasticsearch URL | — |
 | `OPENSEARCH_INDEX` | OpenSearch index name | `braindump_recordings` |
+| `OIDC_ENABLED` | Enable OIDC SSO (`1`/`0`) | `0` |
 | `APP_SECRET` | Symfony app secret (used locally to encrypt API keys) | — |
 | `UPSUN_API_TOKEN` | Upsun API token for CI automation (`app:ci-run`) | — |
 | `CI_NOTIFICATION_EMAIL` | Recipient email for CI notifications | — |
