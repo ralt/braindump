@@ -82,9 +82,13 @@ class CiRunCommand extends Command
             // create will remain after this command finishes.
             $this->cleanupOldCiEnvironments($project, $connector, $io);
 
-            // 1. Create branch
+            // 1. Create branch — WITHOUT cloning the parent's data (3rd arg = false).
+            // This task runs on main; cloning would "take a temporary backup of the parent
+            // environment", which redeploys main and kills this task (tasks die when their
+            // environment redeploys). CI doesn't need main's data anyway — the test
+            // bootstrap resets the schema and creates its own — so skip the clone.
             $io->info('Creating branch...');
-            $activity = $mainEnv->branch($branchName, $branchName);
+            $activity = $mainEnv->branch($branchName, $branchName, false);
             $this->waitWithProgress($activity);
             $activity->refresh();
             if (!\in_array($activity->result, ['success', 'warning'], true)) {
