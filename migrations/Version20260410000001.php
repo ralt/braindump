@@ -161,9 +161,13 @@ final class Version20260410000001 extends AbstractMigration
             $this->addSql('ALTER TABLE claude_session ADD CONSTRAINT FK_CLAUDE_USER FOREIGN KEY (user_id) REFERENCES "user" (id) NOT DEFERRABLE INITIALLY IMMEDIATE');
         }
 
-        // Messenger transport table — only for PostgreSQL; SQLite uses auto_setup
+        // Messenger transport table — only for PostgreSQL; SQLite uses auto_setup.
+        // Use IF NOT EXISTS so this is idempotent: the messenger transport's auto_setup
+        // may have already created the table on a fresh DB (e.g. an env branched without
+        // cloned data), and we must not clash with it. The pg_notify trigger below is
+        // applied regardless, so use_notify works even when the table pre-existed.
         if ($isPostgres) {
-            $this->addSql('CREATE TABLE messenger_messages (
+            $this->addSql('CREATE TABLE IF NOT EXISTS messenger_messages (
                 id BIGSERIAL NOT NULL,
                 body TEXT NOT NULL,
                 headers TEXT NOT NULL,
@@ -173,9 +177,9 @@ final class Version20260410000001 extends AbstractMigration
                 delivered_at TIMESTAMP(0) WITHOUT TIME ZONE DEFAULT NULL,
                 PRIMARY KEY(id)
             )');
-            $this->addSql('CREATE INDEX IDX_75EA56E0FB7336F0 ON messenger_messages (queue_name)');
-            $this->addSql('CREATE INDEX IDX_75EA56E0E3BD61CE ON messenger_messages (available_at)');
-            $this->addSql('CREATE INDEX IDX_75EA56E016BA31DB ON messenger_messages (delivered_at)');
+            $this->addSql('CREATE INDEX IF NOT EXISTS IDX_75EA56E0FB7336F0 ON messenger_messages (queue_name)');
+            $this->addSql('CREATE INDEX IF NOT EXISTS IDX_75EA56E0E3BD61CE ON messenger_messages (available_at)');
+            $this->addSql('CREATE INDEX IF NOT EXISTS IDX_75EA56E016BA31DB ON messenger_messages (delivered_at)');
             $this->addSql('COMMENT ON COLUMN messenger_messages.created_at IS \'(DC2Type:datetime_immutable)\'');
             $this->addSql('COMMENT ON COLUMN messenger_messages.available_at IS \'(DC2Type:datetime_immutable)\'');
             $this->addSql('COMMENT ON COLUMN messenger_messages.delivered_at IS \'(DC2Type:datetime_immutable)\'');
