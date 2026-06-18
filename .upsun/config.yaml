@@ -161,16 +161,7 @@ tasks:
         SEARCH_PROVIDER: postgres
 
     run:
-      command: |
-        set -e
-        [ -f .environment ] && . ./.environment
-        # Diagnostic (remove once email is confirmed). We know the task has a relay
-        # MAILER_DSN, but notify()'s result is hidden — the task run log truncates after
-        # "Creating branch...". Probe the real send HERE, before app:ci-run, where output is
-        # captured, to prove whether this container can actually reach the relay.
-        echo "[ci-task] MAILER_DSN=[${MAILER_DSN:-UNSET}]"
-        php bin/console app:mail-test || true
-        php bin/console app:ci-run
+      command: php bin/console app:ci-run
       timeout: 7200
 
 services:

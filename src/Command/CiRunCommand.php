@@ -321,11 +321,7 @@ class CiRunCommand extends Command
                 ->text($body);
 
             $this->mailerTransport->send($email);
-            // Surface the outcome in the task log — the transport send is otherwise silent,
-            // so a misconfigured/unreachable relay looks identical to a successful send.
-            fwrite(\STDERR, sprintf("[ci] notification sent from %s to %s\n", $from, $this->ciNotificationEmail));
         } catch (\Throwable $e) {
-            fwrite(\STDERR, sprintf("[ci] notification FAILED: %s\n", $e->getMessage()));
             $this->logger->error('Failed to send CI notification email', ['error' => $e->getMessage()]);
         }
     }
