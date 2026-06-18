@@ -42,6 +42,9 @@ class CiRunCommand extends Command
     {
         $io = new SymfonyStyle($input, $output);
 
+        // The branch deploy + tests can take many minutes; never let PHP abort us mid-wait.
+        set_time_limit(0);
+
         $projectId = $_ENV['PLATFORM_PROJECT'] ?? '';
 
         if ($this->upsunApiToken === '' || $projectId === '') {
@@ -82,7 +85,7 @@ class CiRunCommand extends Command
             // 1. Create branch
             $io->info('Creating branch...');
             $activity = $mainEnv->branch($branchName, $branchName);
-            $activity->wait(null, null, 5);
+            $this->waitWithProgress($activity);
             $activity->refresh();
             if (!\in_array($activity->result, ['success', 'warning'], true)) {
                 $io->error(sprintf('Branch creation failed (result: %s)', $activity->result));
@@ -107,7 +110,7 @@ class CiRunCommand extends Command
             $opResult = $ciEnv->runSourceOperation('update-dependencies');
             $sourceLog = '';
             foreach ($opResult->getActivities() as $sourceActivity) {
-                $sourceActivity->wait(null, null, 5);
+                $this->waitWithProgress($sourceActivity);
                 $sourceActivity->refresh();
                 $activityLog = $this->getActivityLog($sourceActivity, $connector);
                 $sourceLog .= $activityLog;
@@ -143,7 +146,7 @@ class CiRunCommand extends Command
             }
 
             $io->info('Waiting for deploy (tests run in post_deploy)...');
-            $deployActivity->wait(null, null, 5);
+            $this->waitWithProgress($deployActivity);
             $deployActivity->refresh();
 
             $result = $deployActivity->result;
@@ -263,15 +266,29 @@ class CiRunCommand extends Command
     {
         $ciEnv->refresh();
         $mergeActivity = $ciEnv->merge();
-        $mergeActivity->wait(null, null, 5);
+        $this->waitWithProgress($mergeActivity);
 
         $ciEnv->refresh();
         if ($ciEnv->isActive()) {
-            $ciEnv->deactivate()->wait(null, null, 5);
+            $this->waitWithProgress($ciEnv->deactivate());
         }
         $ciEnv->refresh();
         $ciEnv->delete();
         $io->success('Merged and cleaned up');
+    }
+
+    /**
+     * Wait for an activity, emitting a flushed heartbeat every poll. The heartbeat keeps
+     * the task producing output during long branch/deploy waits and prints elapsed time
+     * so we can see exactly how far a run gets if it's cut short.
+     */
+    private function waitWithProgress(object $activity): void
+    {
+        $start = time();
+        $activity->wait(static function () use ($start): void {
+            fwrite(\STDOUT, sprintf("[ci] waiting… %ds elapsed\n", time() - $start));
+            fflush(\STDOUT);
+        }, null, 5);
     }
 
     private function getActivityLog(object $activity, Connector $connector): string
