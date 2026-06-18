@@ -510,7 +510,7 @@
                     </tr>
                     <tr>
                         <td>Audio storage</td>
-                        <td>Upsun network-storage</td>
+                        <td>Symfony Cloud network-storage</td>
                         <td>S3-compatible object store</td>
                         <td>Need CDN, cross-region replication, or very large file counts</td>
                     </tr>
@@ -576,7 +576,7 @@
                 <div class="component-header">
                     <h3>Weekly cron trigger</h3>
                 </div>
-                <p>An Upsun cron job runs <code>app:ci-run</code> every Monday at 3 AM. It uses the Upsun API to create a new environment branch from <code>main</code>, so the update process runs in an isolated copy of production.</p>
+                <p>An Symfony Cloud cron job runs <code>app:ci-run</code> every Monday at 3 AM. It uses the Symfony Cloud API to create a new environment branch from <code>main</code>, so the update process runs in an isolated copy of production.</p>
             </div>
 
             <div class="component">
@@ -590,7 +590,7 @@
                 <div class="component-header">
                     <h3>Deploy and test</h3>
                 </div>
-                <p>After the source operation, Upsun deploys the branch. The <code>post_deploy</code> hook runs PHPUnit. If the deploy or tests fail, the branch is left in place for investigation.</p>
+                <p>After the source operation, Symfony Cloud deploys the branch. The <code>post_deploy</code> hook runs PHPUnit. If the deploy or tests fail, the branch is left in place for investigation.</p>
             </div>
 
             <div class="component">
@@ -604,7 +604,7 @@
                 <div class="component-header">
                     <h3>Non-security updates: notify and wait</h3>
                 </div>
-                <p>If no security advisories were found, the branch is left open and a notification email is sent with a direct link to review and merge in the Upsun console. This avoids auto-merging routine updates that might need manual review.</p>
+                <p>If no security advisories were found, the branch is left open and a notification email is sent with a direct link to review and merge in the Symfony Cloud console. This avoids auto-merging routine updates that might need manual review.</p>
             </div>
 
             <div class="component">
@@ -617,7 +617,7 @@
         </div>
 
         <h3 style="margin-top: 2rem; margin-bottom: 0.5rem;">CI Run Flow</h3>
-        <div class="flow-diagram">Cron (Monday 3 AM)         Upsun API                  OpenAI
+        <div class="flow-diagram">Cron (Monday 3 AM)         Symfony Cloud API                  OpenAI
    |                           |                          |
    |  app:ci-run               |                          |
    |-------------------------->| branch from main         |
@@ -674,7 +674,7 @@
 </div>
 
 <footer>
-    <p>Built with Symfony. Deployed on <a href="https://upsun.com">Upsun</a>. Source on <a href="https://github.com/ralt/braindump">GitHub</a>.</p>
+    <p>Built with Symfony. Deployed on <a href="https://symfony.com/cloud/">Symfony Cloud</a>. Source on <a href="https://github.com/ralt/braindump">GitHub</a>.</p>
 </footer>
 
 <script>

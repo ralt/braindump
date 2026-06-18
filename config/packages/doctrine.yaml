@@ -24,7 +24,7 @@ doctrine:
 when@test:
     doctrine:
         dbal:
-            # Use the same database — no suffix on Upsun (tests run against real PostgreSQL)
+            # Use the same database — no suffix on Symfony Cloud (tests run against real PostgreSQL)
             dbname_suffix: ''
 
 when@prod:

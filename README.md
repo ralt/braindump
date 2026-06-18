@@ -2,7 +2,7 @@
 
 Braindump is not a quick voice memo app. It's for the longer stuff — the 5-minute explanation of an architecture you're considering, the 15-minute walkthrough of a problem you're stuck on, the detailed brain dump you do when you need to get everything out of your head and into something searchable. The name is literal: dump your brain, then work with what comes out.
 
-Record audio in your browser, get it transcribed **on-device** (a local Whisper model — no API key, nothing leaves your machine), search across all your transcriptions, and refine the text with an inline AI rewriting chat. Runs fully local out of the box; add hosted services (OpenAI, PostgreSQL, SSO…) only when you want them. Built with Symfony, deployed on Upsun.
+Record audio in your browser, get it transcribed **on-device** (a local Whisper model — no API key, nothing leaves your machine), search across all your transcriptions, and refine the text with an inline AI rewriting chat. Runs fully local out of the box; add hosted services (OpenAI, PostgreSQL, SSO…) only when you want them. Built with Symfony, deployed on Symfony Cloud.
 
 ![Inline rewriting chat — the transcript becomes the first user message, and the assistant streams its reply via Mercure.](docs/recording-ai-chat.png)
 
@@ -11,7 +11,7 @@ Record audio in your browser, get it transcribed **on-device** (a local Whisper 
 - **Audio Recording** — Record directly from the browser with microphone selection. Up to 25MB per recording (the OpenAI Whisper file size limit).
 - **Automatic Transcription** — Audio is transcribed in the background. By default a local Whisper model (whisper.cpp) runs on-device with no API key; set `TRANSCRIBER=openai` to use the hosted OpenAI Whisper API instead. If the user left the title field blank, an LLM generates a short descriptive title when one is configured — otherwise the title falls back to the transcript's opening words. Status updates live via Mercure.
 - **Full-Text Search** — PostgreSQL full-text search across titles and transcriptions, with configurable OpenSearch backend.
-- **Rewriting Chat** — On the recording page, the transcript is fed to an AI assistant scoped to rewriting/editing. Stream replies appear inline, history persists across reloads, and there's a voice-input button (with mic device picker) for quick refinements. Supports multiple providers (Anthropic, OpenAI, Google, Groq, Mistral, DeepSeek, xAI, OpenRouter). Each user provides their own API key, stored encrypted via Upsun Vault KMS.
+- **Rewriting Chat** — On the recording page, the transcript is fed to an AI assistant scoped to rewriting/editing. Stream replies appear inline, history persists across reloads, and there's a voice-input button (with mic device picker) for quick refinements. Supports multiple providers (Anthropic, OpenAI, Google, Groq, Mistral, DeepSeek, xAI, OpenRouter). Each user provides their own API key, stored encrypted via Symfony Cloud Vault KMS.
 - **Skills** — Reusable context documents (tone guidelines, writing rules, persona definitions, domain knowledge) you define once on `/skills` and toggle on per chat. Activated skills get concatenated into the system prompt for every assistant call in that conversation — invisible in the message stream, but they shape every reply. Per-user, with a `(session, skill)` join table tracking which are active in each conversation.
 - **Enterprise-Ready Auth** — Form login with per-user roles and permissions. OIDC for enterprise SSO coming soon.
 - **Admin Back-Office** — EasyAdmin dashboard for user management.
@@ -28,15 +28,15 @@ This separation means the web application stays responsive regardless of how man
 
 Two flows publish events that the browser needs to receive live: the transcription worker reporting status changes, and the rewriting chat streaming AI tokens to every open tab on the same recording. Traditional PHP-FPM ties up one worker per open SSE connection — with limited workers, a handful of users staring at a chat would starve the rest of the app.
 
-Mercure handles persistent SSE connections with async I/O, so the PHP application only does the publishing (a fast HTTP call to the hub) and never holds the long-lived browser connection itself. On Upsun, Mercure runs as a managed service on a dedicated subdomain, fully decoupled from the PHP-FPM tier.
+Mercure handles persistent SSE connections with async I/O, so the PHP application only does the publishing (a fast HTTP call to the hub) and never holds the long-lived browser connection itself. On Symfony Cloud, Mercure runs as a managed service on a dedicated subdomain, fully decoupled from the PHP-FPM tier.
 
 ### Why network storage for audio files
 
-Audio files need to be accessible by both the web application (which receives the upload) and the transcription worker (which reads the file to send to OpenAI). On Upsun, the web container and worker containers are separate processes that don't share a filesystem. The `network-storage` service provides a shared mount that both can access, solving this cleanly without needing to store files in the database or an external object store.
+Audio files need to be accessible by both the web application (which receives the upload) and the transcription worker (which reads the file to send to OpenAI). On Symfony Cloud, the web container and worker containers are separate processes that don't share a filesystem. The `network-storage` service provides a shared mount that both can access, solving this cleanly without needing to store files in the database or an external object store.
 
 ### Why Vault KMS for API key encryption
 
-Each user provides their own AI provider API key for the rewriting chat. These keys are sensitive credentials that must be stored encrypted at rest. On Upsun, the application uses the managed Vault KMS service for transit encryption — the key never exists in plaintext in the database or in application config. The encryption key is managed by the platform, rotated independently, and never leaves the Vault service.
+Each user provides their own AI provider API key for the rewriting chat. These keys are sensitive credentials that must be stored encrypted at rest. On Symfony Cloud, the application uses the managed Vault KMS service for transit encryption — the key never exists in plaintext in the database or in application config. The encryption key is managed by the platform, rotated independently, and never leaves the Vault service.
 
 ### Why PostgreSQL LISTEN/NOTIFY for the message queue
 
@@ -97,7 +97,7 @@ Braindump runs fully local by default. Everything below is **opt-in** — enable
 | **PostgreSQL** | `DATABASE_URL=postgresql://…` | Default is SQLite. The Docker setup uses the bundled Postgres. |
 | **OpenSearch full-text search** | `SEARCH_PROVIDER=opensearch` + `OPENSEARCH_URL` | Default `database` auto-detects SQLite vs PostgreSQL — no extra service. |
 | **Enterprise SSO (OIDC)** | `OIDC_ENABLED=1` + `OIDC_*` | Adds "Sign in with SSO" next to form login. |
-| **Encrypted per-user API keys (Vault KMS)** | *(Upsun only)* | Locally, keys are encrypted with `APP_SECRET`; production uses Upsun Vault KMS. |
+| **Encrypted per-user API keys (Vault KMS)** | *(Symfony Cloud only)* | Locally, keys are encrypted with `APP_SECRET`; production uses Symfony Cloud Vault KMS. |
 
 ## Environment Variables
 
@@ -117,18 +117,18 @@ Braindump runs fully local by default. Everything below is **opt-in** — enable
 | `OPENSEARCH_INDEX` | OpenSearch index name | `braindump_recordings` |
 | `OIDC_ENABLED` | Enable OIDC SSO (`1`/`0`) | `0` |
 | `APP_SECRET` | Symfony app secret (used locally to encrypt API keys) | — |
-| `UPSUN_API_TOKEN` | Upsun API token for CI automation (`app:ci-run`) | — |
+| `UPSUN_API_TOKEN` | Symfony Cloud API token for CI automation (`app:ci-run`) | — |
 | `CI_NOTIFICATION_EMAIL` | Recipient email for CI notifications | — |
 | `CI_EMAIL_DOMAIN` | Optional domain for FROM address (`noreply@{domain}`). Falls back to `CI_NOTIFICATION_EMAIL` | — |
-| `MAILER_DSN` | Mail transport (auto-set on Upsun from `PLATFORM_SMTP_HOST`) | `null://null` |
+| `MAILER_DSN` | Mail transport (auto-set on Symfony Cloud from `PLATFORM_SMTP_HOST`) | `null://null` |
 
-## Deployment on Upsun
+## Deployment on Symfony Cloud
 
 The `.upsun/config.yaml` defines the full deployment:
 
 - **Web application**: PHP 8.4 with PHP-FPM
 - **Transcription worker**: Consumes the `async` Messenger transport — runs OpenAI Whisper transcription outside the HTTP request path
-- **Weekly CI cron**: Runs `app:ci-run` — creates an Upsun environment, updates dependencies, runs `phpunit`. Auto-merges security fixes; sends an email with a merge link for non-security updates. On failure, sends the activity log to OpenAI for root-cause analysis and emails the results
+- **Weekly CI cron**: Runs `app:ci-run` — creates an Symfony Cloud environment, updates dependencies, runs `phpunit`. Auto-merges security fixes; sends an email with a merge link for non-security updates. On failure, sends the activity log to OpenAI for root-cause analysis and emails the results
 - **PostgreSQL 16**: Primary database
 - **Mercure**: Managed real-time hub (transcription status + chat streaming)
 - **Network storage**: Shared audio file storage
@@ -152,5 +152,5 @@ Set environment variables via `upsun variable:create`.
 - **Stimulus + Turbo** for frontend interactivity
 - **marked + DOMPurify** for sanitized markdown rendering of AI replies
 - **Provider SDKs**: direct calls to Anthropic Messages API + OpenAI-compatible chat completions (per-user encrypted keys)
-- **Vault KMS** for API key encryption (transit encryption on Upsun)
-- **Upsun** (formerly Platform.sh) for deployment
+- **Vault KMS** for API key encryption (transit encryption on Symfony Cloud)
+- **Symfony Cloud** (formerly Platform.sh) for deployment

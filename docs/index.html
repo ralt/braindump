@@ -477,7 +477,7 @@
             </div>
             <div class="arch-card">
                 <h3>Shared Network Storage</h3>
-                <p>Audio files must be accessible by both the web app and the transcription worker. Upsun's network-storage service gives both containers access to the same files.</p>
+                <p>Audio files must be accessible by both the web app and the transcription worker. Symfony Cloud's network-storage service gives both containers access to the same files.</p>
             </div>
             <div class="arch-card">
                 <h3>PostgreSQL for Everything</h3>
@@ -485,7 +485,11 @@
             </div>
             <div class="arch-card">
                 <h3>Vault KMS for API Keys</h3>
-                <p>User API keys are encrypted at rest via Upsun's managed Vault KMS transit encryption. The encryption key never leaves the vault.</p>
+                <p>User API keys are encrypted at rest via Symfony Cloud's managed Vault KMS transit encryption. The encryption key never leaves the vault.</p>
+            </div>
+            <div class="arch-card">
+                <h3>Tasks for Dependency Auto-Updates</h3>
+                <p>A weekly Symfony Cloud task branches the app, runs <code>composer update</code> and the test suite on the branch, then auto-merges security fixes or emails a merge link &mdash; on its own on-demand container, not the production app.</p>
             </div>
             <div class="arch-card">
                 <h3>Display, Don't Execute</h3>
@@ -509,7 +513,7 @@
             <span class="tech-badge">Turbo</span>
             <span class="tech-badge">marked + DOMPurify</span>
             <span class="tech-badge">Vault KMS</span>
-            <span class="tech-badge">Upsun</span>
+            <span class="tech-badge">Symfony Cloud</span>
         </div>
     </section>
 
@@ -535,7 +539,7 @@
                     <li><strong>PostgreSQL</strong> &mdash; swap SQLite for Postgres with one <code>DATABASE_URL</code>.</li>
                     <li><strong>OpenSearch</strong> &mdash; scale full-text search beyond the database.</li>
                     <li><strong>OIDC SSO</strong> &mdash; enterprise single sign-on next to form login (<code>OIDC_ENABLED=1</code>).</li>
-                    <li><strong>Upsun</strong> &mdash; deploy it all (Postgres, Mercure, Vault KMS, workers) with <code>upsun push</code>.</li>
+                    <li><strong>Symfony Cloud</strong> &mdash; deploy it all (Postgres, Mercure, Vault KMS, workers) with <code>upsun push</code>.</li>
                 </ul>
             </div>
         </div>
@@ -544,7 +548,7 @@
 </div>
 
 <footer>
-    <p>Built with Symfony. Deployed on <a href="https://upsun.com">Upsun</a>. Source on <a href="https://github.com/ralt/braindump">GitHub</a>.</p>
+    <p>Built with Symfony. Deployed on <a href="https://symfony.com/cloud/">Symfony Cloud</a>. Source on <a href="https://github.com/ralt/braindump">GitHub</a>.</p>
 </footer>
 
 <script>

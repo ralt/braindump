@@ -103,7 +103,7 @@ applications:
     crons:
       # The cron only *triggers* the on-demand "ci" task (a cheap API call); the actual
       # branch/test/merge orchestration runs in the dedicated "ci" task container below,
-      # so it doesn't consume production app resources. Upsun tasks cannot be scheduled
+      # so it doesn't consume production app resources. Symfony Cloud tasks cannot be scheduled
       # directly — a cron is the supported way to run one on a schedule.
       weekly_ci:
         spec: '0 3 * * 1'
@@ -134,7 +134,7 @@ tasks:
         - xsl
 
     # DATABASE_URL/MAILER_DSN are derived from these in .environment; the command itself
-    # only orchestrates the Upsun API, but the Symfony kernel needs them to boot in prod.
+    # only orchestrates the Symfony Cloud API, but the Symfony kernel needs them to boot in prod.
     relationships:
       database: 'db:postgresql'
 

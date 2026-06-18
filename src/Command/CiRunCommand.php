@@ -66,7 +66,7 @@ class CiRunCommand extends Command
 
         $project = $client->getProject($projectId);
         if ($project === false) {
-            $io->error('Could not find Upsun project ' . $projectId);
+            $io->error('Could not find Symfony Cloud project ' . $projectId);
             return Command::FAILURE;
         }
 
@@ -302,7 +302,7 @@ class CiRunCommand extends Command
             $log = mb_substr($activityLog, 0, 12000);
 
             $messages = new MessageBag(
-                new SystemMessage('You are a DevOps assistant analyzing CI/CD activity logs from an Upsun (Platform.sh) deployment. Identify the root cause of the failure and suggest concrete fixes. Be concise — bullet points preferred.'),
+                new SystemMessage('You are a DevOps assistant analyzing CI/CD activity logs from an Symfony Cloud (Platform.sh) deployment. Identify the root cause of the failure and suggest concrete fixes. Be concise — bullet points preferred.'),
                 new UserMessage(new Text("This CI activity failed. Analyze the log and suggest how to fix it:\n\n" . $log)),
             );
 

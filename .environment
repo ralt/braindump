@@ -1,6 +1,6 @@
 export DATABASE_URL="postgresql://${DATABASE_USERNAME}:${DATABASE_PASSWORD}@${DATABASE_HOST}:${DATABASE_PORT}/${DATABASE_PATH}?serverVersion=16&charset=utf8"
 
-# Mercure — build Symfony-expected env vars from Upsun relationship vars
+# Mercure — build Symfony-expected env vars from Symfony Cloud relationship vars
 if [ -n "${MERCURE_HOST:-}" ]; then
   export MERCURE_URL="${MERCURE_SCHEME}://${MERCURE_HOST}:${MERCURE_PORT}/.well-known/mercure"
   export MERCURE_JWT_SECRET="${MERCURE_PASSWORD}"
@@ -9,7 +9,7 @@ if [ -n "${MERCURE_HOST:-}" ]; then
   export MERCURE_PUBLIC_URL="/.well-known/mercure"
 fi
 
-# Upsun SMTP relay
+# Symfony Cloud SMTP relay
 if [ -n "${PLATFORM_SMTP_HOST:-}" ]; then
   export MAILER_DSN="smtp://${PLATFORM_SMTP_HOST}:25"
 fi

@@ -23,7 +23,7 @@ RUN mkdir -p /models \
        "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-${WHISPER_MODEL}.bin"
 
 # ---------------------------------------------------------------------------
-# Stage 2 — the application image (FrankenPHP, mirrors the Upsun runtime).
+# Stage 2 — the application image (FrankenPHP, mirrors the Symfony Cloud runtime).
 # ---------------------------------------------------------------------------
 FROM dunglas/frankenphp:1-php8.4 AS app
 
@@ -32,7 +32,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg libgomp1 unzip git \
     && rm -rf /var/lib/apt/lists/*
 
-# PHP extensions (same set as the Upsun config, plus pdo_sqlite for the zero-config default
+# PHP extensions (same set as the Symfony Cloud config, plus pdo_sqlite for the zero-config default
 # and zip so Composer can extract dist packages).
 RUN install-php-extensions pdo_pgsql pdo_sqlite sodium intl mbstring ctype iconv xsl opcache zip
 
