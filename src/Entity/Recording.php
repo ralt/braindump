@@ -99,7 +99,7 @@ class Recording
             return $this->title;
         }
         return match ($this->status) {
-            RecordingStatus::Pending, RecordingStatus::Transcribing => 'Generating title…',
+            RecordingStatus::Pending, RecordingStatus::Transcribing => 'Transcribing…',
             default => 'Untitled',
         };
     }

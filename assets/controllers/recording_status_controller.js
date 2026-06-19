@@ -59,7 +59,7 @@ export default class extends Controller {
 
     computeDisplayTitle(title, status) {
         if (title && title.trim() !== '') return title
-        if (status === 'pending' || status === 'transcribing') return 'Generating title…'
+        if (status === 'pending' || status === 'transcribing') return 'Transcribing…'
         return 'Untitled'
     }
 
