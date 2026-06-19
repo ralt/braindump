@@ -51,8 +51,15 @@ RUN composer install --no-dev --no-scripts --no-interaction --prefer-dist --no-p
 
 # Application code.
 COPY . .
+# Compile the frontend: assets:install copies bundle assets (EasyAdmin, etc.) into public/,
+# and asset-map:compile builds the AssetMapper/importmap output into public/assets/ — without
+# it the Stimulus controllers 404 in prod and JS-driven UI (e.g. the mic picker) never loads.
+# APP_SECRET is only set at runtime, so give the build a throwaway value to boot the kernel.
 RUN composer dump-autoload --no-dev --classmap-authoritative \
+    && APP_SECRET=build php bin/console assets:install public --no-interaction \
+    && APP_SECRET=build php bin/console asset-map:compile \
     && mkdir -p var/cache var/log storage/audio var/whisper \
+    && rm -rf var/cache/prod \
     && chmod -R 777 var storage
 
 COPY docker/Caddyfile /etc/caddy/Caddyfile
