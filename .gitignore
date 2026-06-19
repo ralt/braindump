@@ -27,3 +27,6 @@ storage/
 /COPYRIGHT
 /LICENSE
 ###< local mercure ###
+
+# Auto-generated Symfony config reference (regenerated on every cache build; unused here — YAML config, no psalm/phpstan)
+/config/reference.php
