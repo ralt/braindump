@@ -27,7 +27,7 @@ Never have subagents modify the main working directory directly.
 
 ## Key Architecture
 
-- **FrankenPHP** as the web runtime on Symfony Cloud (via `runtime/frankenphp-symfony`)
+- **Web runtime:** PHP-FPM on Symfony Cloud (`php:8.4`); the chat handler holds an FPM worker for the duration of an AI completion. FrankenPHP is used only in the local Docker image (`dunglas/frankenphp`), and FrankenPHP worker mode is the planned scaling path for prod (not yet adopted).
 - **Messenger transport:** `async` (transcription jobs) — Doctrine transport storing jobs durably in a database table. On PostgreSQL, `use_notify` lets LISTEN/NOTIFY wake the worker the instant a job lands; the worker still polls the table as a fallback (NOTIFY isn't persistent), which is what keeps a job enqueued mid-deploy from being lost.
 - **AI rewriting chat runs inline in the HTTP request** — the request persists the user message, calls the AI provider, and streams reply deltas to a per-session Mercure topic; `ignore_user_abort(true)` keeps the assistant message persisting even if the browser disconnects mid-stream. No dedicated worker or Messenger transport.
 - **Mercure SSE** for real-time updates (transcription status and AI chat reply streaming); same-origin path routing (`/.well-known/mercure`)
