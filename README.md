@@ -88,16 +88,76 @@ php bin/phpunit
 
 ## Add services as you grow
 
-Braindump runs fully local by default. Everything below is **opt-in** — enable it when you want it, in any order. Put secrets in `.env.local` (gitignored), never in `.env`.
+Braindump runs fully local by default. Every capability below is **opt-in** — enable it when you want it, in any order. Put secrets in `.env.local` (gitignored), never in `.env`, and restart the server (and any workers) after changing environment variables.
 
-| Want… | Set | Notes |
-|---|---|---|
-| **Faster / more accurate transcription** | `TRANSCRIBER=openai` + `OPENAI_API_KEY` | Uses the hosted OpenAI Whisper API instead of the local model. |
-| **AI rewriting chat & LLM titles** | `OPENAI_API_KEY` (plus each user's own provider key, set in app settings) | Without an LLM, recordings are titled from their opening words. |
-| **PostgreSQL** | `DATABASE_URL=postgresql://…` | Default is SQLite. The Docker setup uses the bundled Postgres. |
-| **OpenSearch full-text search** | `SEARCH_PROVIDER=opensearch` + `OPENSEARCH_URL` | Default `database` auto-detects SQLite vs PostgreSQL — no extra service. |
-| **Enterprise SSO (OIDC)** | `OIDC_ENABLED=1` + `OIDC_*` | Adds "Sign in with SSO" next to form login. |
-| **Encrypted per-user API keys (Vault KMS)** | *(Symfony Cloud only)* | Locally, keys are encrypted with `APP_SECRET`; production uses Symfony Cloud Vault KMS. |
+### Local Whisper → OpenAI Whisper API
+
+Faster, more accurate transcription — at the cost of sending audio to OpenAI and needing an API key.
+
+```bash
+# .env.local
+TRANSCRIBER=openai
+OPENAI_API_KEY=sk-...
+```
+
+New recordings use the hosted API immediately; you no longer need the `whisper-cli`/`ffmpeg` binaries or a downloaded model.
+
+### Heuristic titles → LLM titles & the AI rewriting chat
+
+By default a recording with no title is named from the transcript's opening words, and the AI rewriting chat is unavailable.
+
+- **LLM-generated titles** (and the CI failure analysis) — set `OPENAI_API_KEY`.
+- **The AI rewriting chat** — each user adds their *own* provider key (Anthropic, OpenAI, …) under **Settings** in the app, so different users can bring different providers. There's no global switch.
+
+### SQLite → PostgreSQL
+
+A shared, concurrent, production-grade database. It also unlocks PostgreSQL full-text search and the LISTEN/NOTIFY message queue (no worker polling).
+
+```bash
+# .env.local
+DATABASE_URL="postgresql://user:pass@127.0.0.1:5432/braindump?serverVersion=16&charset=utf8"
+```
+
+Then create the schema:
+
+```bash
+php bin/console doctrine:migrations:migrate
+```
+
+The Docker setup already uses a bundled PostgreSQL. Existing SQLite data is **not** migrated automatically.
+
+### Database search → OpenSearch
+
+For large datasets, hand full-text search to OpenSearch/Elasticsearch instead of the database (the default `database` provider auto-detects SQLite vs PostgreSQL, so you don't need this until you outgrow it).
+
+```bash
+# .env.local
+SEARCH_PROVIDER=opensearch
+OPENSEARCH_URL=https://localhost:9200
+OPENSEARCH_INDEX=braindump_recordings   # optional; this is the default
+```
+
+New recordings are indexed as they finish transcribing. To back-fill everything that already exists (recordings created before the switch), run:
+
+```bash
+php bin/console app:search:reindex
+```
+
+### Form login → OIDC single sign-on
+
+Add "Sign in with SSO" (Okta, Microsoft Entra, Google Workspace, Keycloak — any OIDC provider) alongside the built-in form login, which stays available.
+
+```bash
+# .env.local
+OIDC_ENABLED=1
+OIDC_WELL_KNOWN_URL=https://your-idp.example.com/.well-known/openid-configuration
+OIDC_CLIENT_ID=your-client-id
+OIDC_CLIENT_SECRET=your-client-secret
+```
+
+### Local encryption → Vault KMS
+
+Per-user provider API keys are always **encrypted at rest**. Out of the box they're sealed with libsodium using a key derived from `APP_SECRET` — so keep `APP_SECRET` stable and secret (rotating it makes stored keys unreadable; users just re-enter them). On **Symfony Cloud** the app automatically upgrades to the managed Vault KMS service instead: it switches on in the `prod` environment via the `vault_kms` relationship declared in `.upsun/config.yaml`, with no code or env change on your side. See [Deployment on Symfony Cloud](#deployment-on-symfony-cloud).
 
 ## Environment Variables
 
@@ -116,7 +176,7 @@ Braindump runs fully local by default. Everything below is **opt-in** — enable
 | `OPENSEARCH_URL` | OpenSearch/Elasticsearch URL | — |
 | `OPENSEARCH_INDEX` | OpenSearch index name | `braindump_recordings` |
 | `OIDC_ENABLED` | Enable OIDC SSO (`1`/`0`) | `0` |
-| `APP_SECRET` | Symfony app secret (used locally to encrypt API keys) | — |
+| `APP_SECRET` | Symfony app secret; also derives the key that encrypts per-user API keys at rest (when not on Vault KMS) | — |
 | `UPSUN_API_TOKEN` | Symfony Cloud API token for CI automation (`app:ci-run`) | — |
 | `CI_NOTIFICATION_EMAIL` | Recipient email for CI notifications | — |
 | `CI_EMAIL_DOMAIN` | Optional domain for FROM address (`noreply@{domain}`). Falls back to `CI_NOTIFICATION_EMAIL` | — |
