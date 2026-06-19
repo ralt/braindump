@@ -31,7 +31,11 @@ services:
             $audioStoragePath: '%app.audio_storage_path%'
 
     App\Service\ApiKeyEncryptorInterface:
-        alias: App\Service\PlaintextApiKeyEncryptor
+        alias: App\Service\SecretBoxApiKeyEncryptor
+
+    App\Service\SecretBoxApiKeyEncryptor:
+        arguments:
+            $appSecret: '%kernel.secret%'
 
     App\Search\SearchProviderFactory:
         arguments:
