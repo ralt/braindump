@@ -12,8 +12,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git build-essential cmake ca-certificates wget \
     && rm -rf /var/lib/apt/lists/*
 
+# Build statically (BUILD_SHARED_LIBS=OFF) so whisper-cli is self-contained — otherwise it
+# needs libwhisper.so.1 / libggml*.so at runtime, which the app image doesn't have, and
+# transcription fails with "error while loading shared libraries".
 RUN git clone --depth 1 --branch "${WHISPER_CPP_VERSION}" https://github.com/ggerganov/whisper.cpp.git /opt/whisper.cpp \
-    && cmake -S /opt/whisper.cpp -B /opt/whisper.cpp/build -DCMAKE_BUILD_TYPE=Release -DWHISPER_BUILD_EXAMPLES=ON \
+    && cmake -S /opt/whisper.cpp -B /opt/whisper.cpp/build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_BUILD_EXAMPLES=ON \
     && cmake --build /opt/whisper.cpp/build -j "$(nproc)" --config Release --target whisper-cli
 
 # Bake a model so the app transcribes immediately. Lives outside /app so a /app/var
