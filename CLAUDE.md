@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Symfony 8.1 / PHP 8.4 speech-to-text web app. Browser audio recording, OpenAI Whisper transcription via Symfony AI, PostgreSQL FTS, interactive AI terminal sessions (via pi.dev). Deployed on Symfony Cloud.
+Symfony 8.1 / PHP 8.4 speech-to-text web app. Browser audio recording, OpenAI Whisper transcription via Symfony AI, PostgreSQL FTS, and an inline AI rewriting chat (per-user provider keys). Deployed on Symfony Cloud.
 
 ## Subagent Workflow (REQUIRED)
 
@@ -28,10 +28,10 @@ Never have subagents modify the main working directory directly.
 ## Key Architecture
 
 - **FrankenPHP** as the web runtime on Symfony Cloud (via `runtime/frankenphp-symfony`)
-- **Messenger transports:** `async` (transcription) and `ai-session` (one worker process per session) via Doctrine/PostgreSQL LISTEN/NOTIFY
-- **One PHP process per AI session** — dispatched via Messenger, runs a `stream_select` loop with synchronous Mercure publishing. No Revolt event loop needed.
-- **Mercure SSE** for real-time updates (transcription status, AI session output) and per-session input/close commands; same-origin path routing (`/.well-known/mercure`)
-- **Per-user AI provider API key** stored encrypted via Vault KMS (prod) or plaintext (dev)
+- **Messenger transport:** `async` (transcription jobs) — Doctrine transport storing jobs durably in a database table. On PostgreSQL, `use_notify` lets LISTEN/NOTIFY wake the worker the instant a job lands; the worker still polls the table as a fallback (NOTIFY isn't persistent), which is what keeps a job enqueued mid-deploy from being lost.
+- **AI rewriting chat runs inline in the HTTP request** — the request persists the user message, calls the AI provider, and streams reply deltas to a per-session Mercure topic; `ignore_user_abort(true)` keeps the assistant message persisting even if the browser disconnects mid-stream. No dedicated worker or Messenger transport.
+- **Mercure SSE** for real-time updates (transcription status and AI chat reply streaming); same-origin path routing (`/.well-known/mercure`)
+- **Per-user AI provider API key** stored encrypted at rest — Vault KMS on Symfony Cloud (prod), libsodium keyed from `APP_SECRET` self-hosted/dev
 - **Audio files** on Symfony Cloud network-storage (shared between web + worker containers)
 - **Symfony Cloud deploy:** `symfony-build` / `symfony-deploy` (installed via Symfony Cloud configurator)
 
@@ -46,9 +46,6 @@ symfony server:start
 
 # Workers (--sleep=60 avoids poll spam on SQLite; not needed on Symfony Cloud where LISTEN/NOTIFY is used)
 php bin/console messenger:consume async --time-limit=3600 --sleep=60
-
-# AI session worker (one process per session, dispatched via Messenger)
-php bin/console messenger:consume ai-session --time-limit=7200 --sleep=60
 
 # Create user
 php bin/console app:create-user <email> <password> <display-name> [--admin]
