@@ -413,6 +413,19 @@
             <p>Transcription jobs need <strong>durability</strong>: if the worker is restarting during a deploy when a recording is uploaded, the job must not be lost. Symfony Messenger with the Doctrine transport stores messages in a database table and delivers them when the worker comes back. It also provides automatic retry with backoff and a failure transport for dead-letter inspection.</p>
             <p><strong>Rule of thumb:</strong> use Mercure for real-time fan-out where loss is tolerable, Messenger for background jobs where reliability matters, PostgreSQL for canonical state.</p>
         </div>
+
+        <div class="component mt-design-note">
+            <div class="component-header">
+                <h3>Why not use Mercure as the job queue too?</h3>
+            </div>
+            <p>Tempting &mdash; the worker already publishes to Mercure, so why not have it <em>subscribe</em> for new jobs instead of leaning on PostgreSQL LISTEN/NOTIFY? Nothing stops a server-side process from subscribing to a hub; Mercure isn't browser-only, and server-to-server eventing over it is perfectly legitimate. But Mercure is <strong>broadcast pub/sub</strong>, and a work queue needs three things it doesn't provide:</p>
+            <ul class="uses-list">
+                <li><strong>Competing consumers.</strong> Every subscriber to a topic receives every message. Run two worker replicas and a single upload gets transcribed twice &mdash; there's no "one worker claims this job" semantics like <code>SELECT … FOR UPDATE SKIP LOCKED</code> or an AMQP work queue.</li>
+                <li><strong>Acknowledgment and redelivery.</strong> If a worker crashes mid-job, a broker redelivers it. Mercure has no per-message ack &mdash; once the SSE frame is received, it's gone.</li>
+                <li><strong>Durability.</strong> The hub can replay a bounded history via <code>Last-Event-ID</code>, but that's a best-effort buffer, not a log a job can be trusted to survive an arbitrary outage in.</li>
+            </ul>
+            <p>So Mercure could only ever be a <em>wake signal</em> sitting on top of the durable table &mdash; exactly LISTEN/NOTIFY's role, but as custom code with the hub now in the job path. The real distinction is <strong>broadcast events vs. work distribution</strong>, not internal vs. external: Mercure for fan-out where loss is tolerable (including between server components), a broker or the Doctrine table for work that must be processed once and never lost.</p>
+        </div>
     </section>
 
     <!-- ===== FLOWS ===== -->
