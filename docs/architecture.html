@@ -384,7 +384,7 @@
                     <h3>OpenSearch</h3>
                     <span class="badge badge-optional">Optional</span>
                 </div>
-                <p>Full-text search alternative to PostgreSQL's built-in FTS. Controlled by the <code>SEARCH_PROVIDER</code> environment variable (<code>postgres</code> by default). Only worth adding when recording volume makes PostgreSQL FTS a bottleneck.</p>
+                <p>Full-text search alternative to the database's built-in FTS. Controlled by the <code>SEARCH_PROVIDER</code> environment variable &mdash; by default (any value other than <code>opensearch</code>) it uses the database's own FTS, auto-detecting PostgreSQL vs SQLite; set it to <code>opensearch</code> to switch. Only worth adding when recording volume makes the database's FTS a bottleneck.</p>
             </div>
 
             <div class="component">
