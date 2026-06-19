@@ -337,7 +337,7 @@
                 <p>Serves two distinct roles:</p>
                 <ul class="uses-list">
                     <li><strong>Application data</strong> &mdash; recordings, users, AI sessions, messages, skills (Doctrine ORM)</li>
-                    <li><strong>Message queue</strong> &mdash; the <code>async</code> Messenger transport uses Doctrine transport with LISTEN/NOTIFY for instant delivery without polling (transcription jobs)</li>
+                    <li><strong>Message queue</strong> &mdash; transcription jobs are stored durably in a database table (the <code>async</code> Doctrine transport). PostgreSQL LISTEN/NOTIFY then wakes the worker the moment a job is enqueued instead of waiting on the poll interval &mdash; but the notifications aren't persistent, so the worker still polls the table as a fallback, which is what keeps a job enqueued while it's down (e.g. mid-deploy) from being lost.</li>
                 </ul>
                 <div class="alternative">
                     <strong>Alternative:</strong> RabbitMQ can replace the message queue role. Symfony Messenger supports AMQP natively. Adds infrastructure cost but handles high message volumes better.

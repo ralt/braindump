@@ -40,7 +40,7 @@ Each user provides their own AI provider API key for the rewriting chat. These k
 
 ### Why PostgreSQL LISTEN/NOTIFY for the message queue
 
-Symfony Messenger needs a transport for async messages. The simplest option is Doctrine transport with PostgreSQL, which reuses the existing database — no additional service to provision, configure, or pay for. PostgreSQL's LISTEN/NOTIFY mechanism provides efficient push-based message delivery (the worker wakes up immediately when a message arrives, rather than polling on a timer). For the throughput this application needs, it's more than sufficient. RabbitMQ or Redis can be swapped in later if needed by changing a single DSN.
+Symfony Messenger needs a transport for async messages. The simplest option is Doctrine transport with PostgreSQL, which reuses the existing database — no additional service to provision, configure, or pay for. Jobs live durably in a database table, so nothing is lost across a worker restart or deploy. PostgreSQL's LISTEN/NOTIFY then wakes the worker the instant a job is enqueued instead of making it wait on its poll interval — the notifications aren't persistent, so the worker still polls the table as a fallback (a missed NOTIFY just means the job is picked up on the next poll). For the throughput this application needs, it's more than sufficient. RabbitMQ or Redis can be swapped in later if needed by changing a single DSN.
 
 ## Try it in one command (Docker)
 
