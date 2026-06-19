@@ -8,6 +8,7 @@ use App\Message\TranscribeRecordingMessage;
 use App\Search\SearchProviderInterface;
 use App\Transcription\TranscriberInterface;
 use Doctrine\ORM\EntityManagerInterface;
+use Psr\Log\LoggerInterface;
 use Symfony\AI\Platform\Message\Content\Text;
 use Symfony\AI\Platform\Message\MessageBag;
 use Symfony\AI\Platform\Message\SystemMessage;
@@ -26,6 +27,7 @@ final class TranscribeRecordingHandler
         private PlatformInterface $platform,
         private HubInterface $hub,
         private SearchProviderInterface $searchProvider,
+        private LoggerInterface $logger,
         private string $audioStoragePath,
     ) {}
 
@@ -60,6 +62,12 @@ final class TranscribeRecordingHandler
         } catch (\Throwable $e) {
             $recording->setStatus(RecordingStatus::Failed);
             $recording->setErrorMessage($e->getMessage());
+            // Surface it in the worker log too — otherwise a broken transcriber (e.g. a
+            // missing whisper-cli binary) is only visible on the recording itself.
+            $this->logger->error('Transcription failed', [
+                'recording' => (string) $message->recordingId,
+                'error' => $e->getMessage(),
+            ]);
         }
 
         $this->em->flush();
