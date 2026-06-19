@@ -11,9 +11,9 @@ Record audio in your browser, get it transcribed **on-device** (a local Whisper 
 - **Audio Recording** — Record directly from the browser with microphone selection. Up to 25MB per recording (the OpenAI Whisper file size limit).
 - **Automatic Transcription** — Audio is transcribed in the background. By default a local Whisper model (whisper.cpp) runs on-device with no API key; set `TRANSCRIBER=openai` to use the hosted OpenAI Whisper API instead. If the user left the title field blank, an LLM generates a short descriptive title when one is configured — otherwise the title falls back to the transcript's opening words. Status updates live via Mercure.
 - **Full-Text Search** — PostgreSQL full-text search across titles and transcriptions, with configurable OpenSearch backend.
-- **Rewriting Chat** — On the recording page, the transcript is fed to an AI assistant scoped to rewriting/editing. Stream replies appear inline, history persists across reloads, and there's a voice-input button (with mic device picker) for quick refinements. Supports multiple providers (Anthropic, OpenAI, Google, Groq, Mistral, DeepSeek, xAI, OpenRouter). Each user provides their own API key, stored encrypted via Symfony Cloud Vault KMS.
+- **Rewriting Chat** — On the recording page, the transcript is fed to an AI assistant scoped to rewriting/editing. Stream replies appear inline, history persists across reloads, and there's a voice-input button (with mic device picker) for quick refinements. Supports multiple providers (Anthropic, OpenAI, Google, Groq, Mistral, DeepSeek, xAI, OpenRouter). Each user provides their own API key, encrypted at rest (libsodium keyed from `APP_SECRET` when self-hosted, Symfony Cloud Vault KMS in production).
 - **Skills** — Reusable context documents (tone guidelines, writing rules, persona definitions, domain knowledge) you define once on `/skills` and toggle on per chat. Activated skills get concatenated into the system prompt for every assistant call in that conversation — invisible in the message stream, but they shape every reply. Per-user, with a `(session, skill)` join table tracking which are active in each conversation.
-- **Enterprise-Ready Auth** — Form login with per-user roles and permissions. OIDC for enterprise SSO coming soon.
+- **Enterprise-Ready Auth** — Form login with per-user roles and permissions, plus optional OIDC single sign-on for enterprise providers (enable with `OIDC_ENABLED=1`; adds a "Sign in with SSO" button alongside form login).
 - **Admin Back-Office** — EasyAdmin dashboard for user management.
 
 ## Infrastructure Architecture
@@ -36,7 +36,7 @@ Audio files need to be accessible by both the web application (which receives th
 
 ### Why Vault KMS for API key encryption
 
-Each user provides their own AI provider API key for the rewriting chat. These keys are sensitive credentials that must be stored encrypted at rest. On Symfony Cloud, the application uses the managed Vault KMS service for transit encryption — the key never exists in plaintext in the database or in application config. The encryption key is managed by the platform, rotated independently, and never leaves the Vault service.
+Each user provides their own AI provider API key for the rewriting chat. These keys are sensitive credentials that must be stored encrypted at rest. Self-hosted, the app seals them with libsodium using a key derived from `APP_SECRET`. On Symfony Cloud, it automatically upgrades to the managed Vault KMS service for transit encryption — the key never exists in plaintext in the database or in application config, and is managed by the platform, rotated independently, and never leaves the Vault service.
 
 ### Why PostgreSQL LISTEN/NOTIFY for the message queue
 
@@ -176,6 +176,9 @@ Per-user provider API keys are always **encrypted at rest**. Out of the box they
 | `OPENSEARCH_URL` | OpenSearch/Elasticsearch URL | — |
 | `OPENSEARCH_INDEX` | OpenSearch index name | `braindump_recordings` |
 | `OIDC_ENABLED` | Enable OIDC SSO (`1`/`0`) | `0` |
+| `OIDC_WELL_KNOWN_URL` | OIDC provider discovery document (`…/.well-known/openid-configuration`) | — |
+| `OIDC_CLIENT_ID` | OIDC client ID | — |
+| `OIDC_CLIENT_SECRET` | OIDC client secret | — |
 | `APP_SECRET` | Symfony app secret; also derives the key that encrypts per-user API keys at rest (when not on Vault KMS) | — |
 | `UPSUN_API_TOKEN` | Symfony Cloud API token for CI automation (`app:ci-run`) | — |
 | `CI_NOTIFICATION_EMAIL` | Recipient email for CI notifications | — |
