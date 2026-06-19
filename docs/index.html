@@ -443,7 +443,7 @@
             </div>
             <div class="feature">
                 <h3>Inline Rewriting Chat</h3>
-                <p>The transcript becomes the first message to a writing assistant locked to rewriting/editing &mdash; no shells, no execution, just text. Replies stream live over Mercure (every open tab sees the same deltas), markdown is rendered safely, and history persists across reloads. Voice input button with a mic device picker for quick refinements. Supports Anthropic, OpenAI, Google, Groq, Mistral, DeepSeek, xAI, and OpenRouter; each user brings their own API key, stored encrypted via Vault KMS.</p>
+                <p>The transcript becomes the first message to a writing assistant locked to rewriting/editing &mdash; no shells, no execution, just text. Replies stream live over Mercure (every open tab sees the same deltas), markdown is rendered safely, and history persists across reloads. Voice input button with a mic device picker for quick refinements. Supports Anthropic, OpenAI, Google, Groq, Mistral, DeepSeek, xAI, and OpenRouter; each user brings their own API key, encrypted at rest (libsodium from <code>APP_SECRET</code> when self-hosted, Vault KMS on Symfony Cloud).</p>
             </div>
             <div class="feature">
                 <h3>Skills</h3>
