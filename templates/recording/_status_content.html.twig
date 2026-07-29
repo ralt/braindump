@@ -50,28 +50,18 @@
         <div class="alert alert-error">
             <strong>Transcription failed:</strong> {{ recording.errorMessage }}
         </div>
-        <div class="flex gap-1 flex-wrap mt-1">
-            {% if is_granted('RECORDING_EDIT', recording) %}
-                <form method="post" action="{{ path('api_recording_retry', {id: recording.id}) }}">
-                    <input type="hidden" name="_token" value="{{ csrf_token('retry') }}">
-                    <button type="submit" class="btn btn-primary">Retry Transcription</button>
-                </form>
-            {% endif %}
-            {% if audioAvailable|default(false) %}
-                <a class="btn btn-secondary" href="{{ path('app_recording_audio', {id: recording.id}) }}">Download audio</a>
-            {% endif %}
-        </div>
+        {% if is_granted('RECORDING_EDIT', recording) %}
+            <form method="post" action="{{ path('api_recording_retry', {id: recording.id}) }}" class="mt-1">
+                <input type="hidden" name="_token" value="{{ csrf_token('retry') }}">
+                <button type="submit" class="btn btn-primary">Retry Transcription</button>
+            </form>
+        {% endif %}
         {% if audioAvailable|default(false) %}
-            <p class="text-muted mt-1">The audio is kept while this recording is unresolved, so you can retry or process it elsewhere.</p>
+            <p class="text-muted mt-1">The audio is kept while this recording is unresolved — download it from the header to process it elsewhere.</p>
         {% endif %}
     </div>
 {% elseif recording.status.value in ['pending', 'transcribing'] %}
     <div class="card">
         <p class="text-muted text-center p-section">Transcription in progress...</p>
-        {% if audioAvailable|default(false) %}
-            <p class="text-center">
-                <a href="{{ path('app_recording_audio', {id: recording.id}) }}">Download audio</a>
-            </p>
-        {% endif %}
     </div>
 {% endif %}

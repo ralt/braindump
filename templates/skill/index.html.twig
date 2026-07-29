@@ -30,10 +30,18 @@
                     </div>
                     <div class="flex gap-1">
                         <a href="{{ path('app_skill_edit', {id: skill.id}) }}" class="btn btn-secondary btn-sm">Edit</a>
-                        <form method="post" action="{{ path('app_skill_delete', {id: skill.id}) }}" onsubmit="return confirm('Delete this skill?')" class="inline">
-                            <input type="hidden" name="_token" value="{{ csrf_token('skill_delete_' ~ skill.id) }}">
-                            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-                        </form>
+                        {% embed '_confirm_dialog.html.twig' with {
+                            trigger: 'Delete',
+                            title: 'Delete "' ~ skill.name ~ '"?',
+                            message: 'Conversations already using this skill keep the text they were sent. This cannot be undone.',
+                        } %}
+                            {% block confirm %}
+                                <form method="post" action="{{ path('app_skill_delete', {id: skill.id}) }}">
+                                    <input type="hidden" name="_token" value="{{ csrf_token('skill_delete_' ~ skill.id) }}">
+                                    <button type="submit" class="btn btn-danger">Delete</button>
+                                </form>
+                            {% endblock %}
+                        {% endembed %}
                     </div>
                 </div>
             </div>

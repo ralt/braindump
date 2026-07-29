@@ -1,7 +1,7 @@
 import { Controller } from '@hotwired/stimulus'
 
 export default class extends Controller {
-    static targets = ['badge', 'content', 'title']
+    static targets = ['badge', 'content', 'title', 'download']
     static values = {
         statusUrl: String,
         contentUrl: String,
@@ -42,6 +42,12 @@ export default class extends Controller {
             if (this.hasBadgeTarget) {
                 this.badgeTarget.textContent = data.status
                 this.badgeTarget.className = `badge badge-${data.status}`
+            }
+            // The worker deletes the audio as soon as a transcript is saved, so the download
+            // stops resolving the instant we go completed. The header isn't part of the
+            // refreshed region, so drop it here rather than leaving a link that 404s.
+            if (this.hasDownloadTarget && data.status === 'completed') {
+                this.downloadTarget.classList.add('hidden')
             }
             this.refreshContent()
             if (data.status === 'completed' || data.status === 'failed') {

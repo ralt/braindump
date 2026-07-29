@@ -111,6 +111,26 @@ class RecordingControllerTest extends DatabaseTestCase
         $this->assertEquals('Test transcription text', $data['transcription']);
     }
 
+    /**
+     * The delete form must stay behind a confirmation. It sits inside a <dialog> that only
+     * scripting can open, so the guard is gone the moment the form escapes that element.
+     */
+    public function testDeleteIsConfirmedByADialog(): void
+    {
+        $client = static::createClient();
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        $user = $this->createUser($em);
+        $recording = $this->createRecording($em, $user);
+
+        $client->loginUser($user);
+        $crawler = $client->request('GET', '/recordings/' . $recording->getId());
+
+        $this->assertResponseIsSuccessful();
+        $insideDialog = $crawler->filter('dialog form[action*="delete"]')->count();
+        $this->assertSame(1, $insideDialog);
+        $this->assertSame($insideDialog, $crawler->filter('form[action*="delete"]')->count());
+    }
+
     public function testRetryOnFailedRecording(): void
     {
         $client = static::createClient();

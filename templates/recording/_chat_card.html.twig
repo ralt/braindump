@@ -43,7 +43,16 @@
                     {% endif %}
                 </div>
             </div>
-            <button type="button" class="btn btn-secondary btn-sm" {{ stimulus_action('ai-chat', 'clear') }}>Clear conversation</button>
+            {% embed '_confirm_dialog.html.twig' with {
+                trigger: 'Clear conversation',
+                triggerClass: 'btn btn-secondary btn-sm',
+                title: 'Clear this conversation?',
+                message: 'Every message in this session is deleted and the chat restarts from the transcript.',
+            } %}
+                {% block confirm %}
+                    <button type="button" class="btn btn-danger" {{ stimulus_action('ai-chat', 'clear') }}>Clear</button>
+                {% endblock %}
+            {% endembed %}
         </div>
     </div>
     <div class="chat-messages" {{ stimulus_target('ai-chat', 'messages') }}>

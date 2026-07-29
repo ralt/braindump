@@ -207,8 +207,9 @@ export default class extends Controller {
     }
 
     async clear(event) {
+        // Confirmation is handled by the surrounding confirm-dialog: this only runs from the
+        // button inside the open dialog.
         if (event && typeof event.preventDefault === 'function') event.preventDefault()
-        if (!confirm('Clear this conversation?')) return
 
         const response = await fetch(this.clearUrlValue, { method: 'POST' })
         if (!response.ok) return

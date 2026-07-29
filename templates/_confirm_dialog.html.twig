@@ -1,0 +1,35 @@
+{#
+    Confirmation dialog. Use with {% embed %} and override the `confirm` block with whatever
+    performs the action — usually a POST form, so the dialog needs no JavaScript of its own
+    beyond opening and closing:
+
+        {% embed '_confirm_dialog.html.twig' with {
+            trigger: 'Delete',
+            title: 'Delete this thing?',
+            message: 'This cannot be undone.',
+        } %}
+            {% block confirm %}
+                <form method="post" action="...">
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                </form>
+            {% endblock %}
+        {% endembed %}
+#}
+<div class="confirm-dialog" {{ stimulus_controller('confirm-dialog') }}>
+    <button type="button" class="{{ triggerClass|default('btn btn-danger btn-sm') }}"
+            {{ stimulus_action('confirm-dialog', 'open') }}>{{ trigger }}</button>
+
+    <dialog class="modal"
+            {{ stimulus_target('confirm-dialog', 'dialog') }}
+            {{ stimulus_action('confirm-dialog', 'closeOnBackdrop', 'click') }}>
+        <h2 class="modal-title">{{ title }}</h2>
+        {% if message is defined and message %}
+            <p class="modal-message">{{ message }}</p>
+        {% endif %}
+        <div class="modal-actions">
+            <button type="button" class="btn btn-secondary"
+                    {{ stimulus_action('confirm-dialog', 'close') }}>Cancel</button>
+            {% block confirm %}{% endblock %}
+        </div>
+    </dialog>
+</div>

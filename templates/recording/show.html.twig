@@ -14,11 +14,25 @@
         <div class="flex gap-1">
             <span class="badge badge-{{ recording.status.value }}" {{ stimulus_target('recording-status', 'badge') }}>{{ recording.status.value }}</span>
 
+            {% if audioAvailable %}
+                <a class="btn btn-secondary btn-sm"
+                   href="{{ path('app_recording_audio', {id: recording.id}) }}"
+                   {{ stimulus_target('recording-status', 'download') }}>Download audio</a>
+            {% endif %}
+
             {% if is_granted('RECORDING_DELETE', recording) %}
-                <form method="post" action="{{ path('api_recording_delete', {id: recording.id}) }}" onsubmit="return confirm('Delete this recording? This cannot be undone.')">
-                    <input type="hidden" name="_token" value="{{ csrf_token('delete-recording') }}">
-                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-                </form>
+                {% embed '_confirm_dialog.html.twig' with {
+                    trigger: 'Delete',
+                    title: 'Delete this recording?',
+                    message: 'The transcript and any AI sessions on it are removed too. This cannot be undone.',
+                } %}
+                    {% block confirm %}
+                        <form method="post" action="{{ path('api_recording_delete', {id: recording.id}) }}">
+                            <input type="hidden" name="_token" value="{{ csrf_token('delete-recording') }}">
+                            <button type="submit" class="btn btn-danger">Delete</button>
+                        </form>
+                    {% endblock %}
+                {% endembed %}
             {% endif %}
         </div>
     </div>
