@@ -17,7 +17,7 @@
             {% if audioAvailable %}
                 <a class="btn btn-secondary btn-sm"
                    href="{{ path('app_recording_audio', {id: recording.id}) }}"
-                   {{ stimulus_target('recording-status', 'download') }}>Download audio</a>
+                   {{ stimulus_target('recording-status', 'audioOnly') }}>Download audio</a>
             {% endif %}
 
             {% if is_granted('RECORDING_DELETE', recording) %}
@@ -47,10 +47,11 @@
                 <span>{{ recording.durationLabel }}</span>
             {% endif %}
             {# Only meaningful while the file exists — once transcribed it's deleted, and the
-               size of something you can't download tells you nothing. #}
+               size of something you can't download tells you nothing. Tagged audioOnly so it
+               disappears with the download button when a transcription finishes in this tab. #}
             {% if audioAvailable %}
-                <span class="gap-separator">|</span>
-                <span>{{ (recording.fileSizeBytes / 1024 / 1024)|number_format(1) }} MB</span>
+                <span class="gap-separator" {{ stimulus_target('recording-status', 'audioOnly') }}>|</span>
+                <span {{ stimulus_target('recording-status', 'audioOnly') }}>{{ (recording.fileSizeBytes / 1024 / 1024)|number_format(1) }} MB</span>
             {% endif %}
         </div>
     </div>

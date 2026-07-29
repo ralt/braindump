@@ -1,7 +1,7 @@
 import { Controller } from '@hotwired/stimulus'
 
 export default class extends Controller {
-    static targets = ['badge', 'content', 'title', 'download']
+    static targets = ['badge', 'content', 'title', 'audioOnly']
     static values = {
         statusUrl: String,
         contentUrl: String,
@@ -43,11 +43,12 @@ export default class extends Controller {
                 this.badgeTarget.textContent = data.status
                 this.badgeTarget.className = `badge badge-${data.status}`
             }
-            // The worker deletes the audio as soon as a transcript is saved, so the download
-            // stops resolving the instant we go completed. The header isn't part of the
-            // refreshed region, so drop it here rather than leaving a link that 404s.
-            if (this.hasDownloadTarget && data.status === 'completed') {
-                this.downloadTarget.classList.add('hidden')
+            // The worker deletes the audio as soon as a transcript is saved. Everything that
+            // only makes sense while the file exists — the download button, the file size and
+            // its separator — sits outside the region refreshContent() replaces, so it has to
+            // be hidden here or it lingers until a manual reload.
+            if (data.status === 'completed') {
+                this.audioOnlyTargets.forEach((element) => element.classList.add('hidden'))
             }
             this.refreshContent()
             if (data.status === 'completed' || data.status === 'failed') {

@@ -168,6 +168,29 @@ class RecordingControllerTest extends DatabaseTestCase
         $this->assertSame($insideDialog, $crawler->filter('form[action*="delete"]')->count());
     }
 
+    /**
+     * Anything that only makes sense while the audio exists sits outside the region the status
+     * controller re-renders, so it must be tagged for the controller to hide when a
+     * transcription finishes in an open tab. Untagged, it lingers as a dead link or a size for
+     * a file that's already deleted.
+     */
+    public function testAudioDependentFieldsAreTaggedForLiveRemoval(): void
+    {
+        $client = static::createClient();
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        $user = $this->createUser($em);
+        $recording = $this->createRecording($em, $user, RecordingStatus::Pending);
+
+        $client->loginUser($user);
+        $crawler = $client->request('GET', '/recordings/' . $recording->getId());
+
+        $this->assertResponseIsSuccessful();
+        $tagged = $crawler->filter('[data-recording-status-target="audioOnly"]')
+            ->each(fn ($node) => $node->text());
+        $this->assertStringContainsString('MB', implode(' ', $tagged));
+        $this->assertCount(1, $crawler->filter('a[data-recording-status-target="audioOnly"][href*="/audio"]'));
+    }
+
     public function testRetryOnFailedRecording(): void
     {
         $client = static::createClient();
