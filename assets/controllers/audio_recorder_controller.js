@@ -18,6 +18,7 @@ export default class extends Controller {
     chunks = []
     timerInterval = null
     startTime = null
+    elapsedSeconds = 0
     totalSize = 0
     audioContext = null
     analyser = null
@@ -105,6 +106,12 @@ export default class extends Controller {
     }
 
     stop() {
+        // Captured here rather than in handleStop(): onstop fires asynchronously, so measuring
+        // there would fold the encoder's flush time into the reported length.
+        if (this.startTime) {
+            this.elapsedSeconds = Math.round((Date.now() - this.startTime) / 1000)
+        }
+
         if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
             this.mediaRecorder.stop()
             this.mediaRecorder.stream.getTracks().forEach(t => t.stop())
@@ -129,6 +136,9 @@ export default class extends Controller {
         const formData = new FormData()
         formData.append('audio', blob, 'recording.webm')
         formData.append('title', title)
+        // The server can't derive this: it has no ffmpeg, and the file is deleted once
+        // transcribed, so the browser is the only place that ever knows the length.
+        formData.append('duration', String(this.elapsedSeconds))
 
         try {
             const response = await fetch(this.uploadUrlValue, {

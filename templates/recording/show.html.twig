@@ -42,8 +42,16 @@
             <span>{{ recording.owner.displayName }}</span>
             <span class="gap-separator">|</span>
             <span>{{ recording.createdAt|date('Y-m-d H:i') }}</span>
-            <span class="gap-separator">|</span>
-            <span>{{ (recording.fileSizeBytes / 1024 / 1024)|number_format(1) }} MB</span>
+            {% if recording.durationLabel %}
+                <span class="gap-separator">|</span>
+                <span>{{ recording.durationLabel }}</span>
+            {% endif %}
+            {# Only meaningful while the file exists — once transcribed it's deleted, and the
+               size of something you can't download tells you nothing. #}
+            {% if audioAvailable %}
+                <span class="gap-separator">|</span>
+                <span>{{ (recording.fileSizeBytes / 1024 / 1024)|number_format(1) }} MB</span>
+            {% endif %}
         </div>
     </div>
 

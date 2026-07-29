@@ -41,6 +41,7 @@ class RecordingCrudController extends AbstractCrudController
         yield AssociationField::new('owner');
         yield ChoiceField::new('status')->hideOnForm()->setChoices(RecordingStatus::cases());
         yield IntegerField::new('fileSizeBytes', 'Size (bytes)')->hideOnForm();
+        yield IntegerField::new('durationSeconds', 'Duration (s)')->hideOnForm();
         yield TextareaField::new('transcription')->hideOnIndex();
         yield DateTimeField::new('createdAt')->hideOnForm();
     }

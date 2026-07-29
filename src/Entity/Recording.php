@@ -34,6 +34,14 @@ class Recording
     #[ORM\Column]
     private int $fileSizeBytes;
 
+    /**
+     * How long the recording ran, reported by the browser on upload. Nullable because
+     * recordings made before this was captured have no way to recover it — the audio is
+     * deleted once transcribed, so there's nothing left to measure.
+     */
+    #[ORM\Column(nullable: true)]
+    private ?int $durationSeconds = null;
+
     #[ORM\Column(type: 'string', length: 20, enumType: RecordingStatus::class)]
     private RecordingStatus $status = RecordingStatus::Pending;
 
@@ -93,6 +101,41 @@ class Recording
      * doesn't show a confusing blank or stale "Untitled" while the auto-title
      * step is still pending behind transcription.
      */
+    public function getDurationSeconds(): ?int
+    {
+        return $this->durationSeconds;
+    }
+
+    public function setDurationSeconds(?int $durationSeconds): static
+    {
+        $this->durationSeconds = $durationSeconds;
+        return $this;
+    }
+
+    /**
+     * Human-readable length, or an empty string when unknown so templates can skip the field.
+     */
+    public function getDurationLabel(): string
+    {
+        if ($this->durationSeconds === null || $this->durationSeconds <= 0) {
+            return '';
+        }
+
+        $hours = intdiv($this->durationSeconds, 3600);
+        $minutes = intdiv($this->durationSeconds % 3600, 60);
+        $seconds = $this->durationSeconds % 60;
+
+        if ($hours > 0) {
+            return sprintf('%dh %02dm', $hours, $minutes);
+        }
+
+        if ($minutes > 0) {
+            return sprintf('%dm %02ds', $minutes, $seconds);
+        }
+
+        return sprintf('%ds', $seconds);
+    }
+
     public function getDisplayTitle(): string
     {
         if ($this->title !== '') {

@@ -27,6 +27,9 @@ class RecordingController extends AbstractController
 {
     private const int MAX_AUDIO_BYTES = 24 * 1024 * 1024;
 
+    /** A day, well above what the size cap physically allows — this only rejects garbage. */
+    private const int MAX_PLAUSIBLE_DURATION_SECONDS = 86400;
+
     public function __construct(
         private RecordingRepository $recordingRepository,
         private AiSessionRepository $aiSessionRepository,
@@ -160,6 +163,13 @@ class RecordingController extends AbstractController
         $recording->setMimeType($audioFile->getMimeType() ?? 'audio/webm');
         $recording->setFileSizeBytes($audioFile->getSize());
         $recording->setStatus(RecordingStatus::Pending);
+
+        // Client-reported, so treat it as a hint: keep it only when it's plausible rather
+        // than rendering a nonsense length. Left null when absent or out of range.
+        $duration = $request->request->getInt('duration');
+        if ($duration > 0 && $duration <= self::MAX_PLAUSIBLE_DURATION_SECONDS) {
+            $recording->setDurationSeconds($duration);
+        }
 
         $filename = $recording->getId() . '.webm';
         $recording->setAudioFilePath($filename);

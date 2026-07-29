@@ -8,6 +8,7 @@ use App\Enum\RecordingStatus;
 use App\Tests\DatabaseTestCase;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
+use Symfony\Component\Uid\Uuid;
 
 class RecordingControllerTest extends DatabaseTestCase
 {
@@ -85,6 +86,7 @@ class RecordingControllerTest extends DatabaseTestCase
 
         $client->request('POST', '/api/recordings', [
             'title' => 'My Test Recording',
+            'duration' => '754',
         ], [
             'audio' => $audioFile,
         ]);
@@ -93,6 +95,41 @@ class RecordingControllerTest extends DatabaseTestCase
         $data = json_decode($client->getResponse()->getContent(), true);
         $this->assertArrayHasKey('id', $data);
         $this->assertEquals('pending', $data['status']);
+
+        // Only the browser ever knows the length, so losing it on upload loses it for good.
+        $freshEm = static::getContainer()->get(EntityManagerInterface::class);
+        $stored = $freshEm->find(Recording::class, Uuid::fromString($data['id']));
+        $this->assertSame(754, $stored->getDurationSeconds());
+        $this->assertSame('12m 34s', $stored->getDurationLabel());
+    }
+
+    public function testUploadIgnoresImplausibleDuration(): void
+    {
+        $client = static::createClient();
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        $user = $this->createUser($em);
+        $client->loginUser($user);
+
+        $audioFile = new UploadedFile(
+            tempnam(sys_get_temp_dir(), 'test_audio'),
+            'test.webm',
+            'audio/webm',
+            null,
+            true
+        );
+
+        $client->request('POST', '/api/recordings', [
+            'duration' => '999999999',
+        ], [
+            'audio' => $audioFile,
+        ]);
+
+        $this->assertResponseStatusCodeSame(201);
+        $data = json_decode($client->getResponse()->getContent(), true);
+        $freshEm = static::getContainer()->get(EntityManagerInterface::class);
+        $stored = $freshEm->find(Recording::class, Uuid::fromString($data['id']));
+        $this->assertNull($stored->getDurationSeconds());
+        $this->assertSame('', $stored->getDurationLabel());
     }
 
     public function testStatusEndpoint(): void
