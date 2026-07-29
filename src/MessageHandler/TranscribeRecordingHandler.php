@@ -73,6 +73,41 @@ final class TranscribeRecordingHandler
         $this->em->flush();
         $this->searchProvider->index($recording);
         $this->publishStatus($recording);
+
+        $this->discardAudioIfTranscribed($recording);
+    }
+
+    /**
+     * The transcript is the artifact worth keeping; the audio is an input we're done with.
+     * Audio for a failed recording is kept indefinitely so the retry button has something to
+     * work with and the file can still be downloaded — losing ten minutes of talking to a
+     * transient API error is the one outcome worth spending disk on. An empty transcript
+     * counts as "not transcribed" for the same reason: it's a success status hiding a
+     * failure, and the recovery path needs the audio.
+     */
+    private function discardAudioIfTranscribed(Recording $recording): void
+    {
+        if ($recording->getStatus() !== RecordingStatus::Completed) {
+            return;
+        }
+
+        if (trim($recording->getTranscription() ?? '') === '') {
+            return;
+        }
+
+        $audioPath = $this->audioStoragePath . '/' . $recording->getAudioFilePath();
+        if (!is_file($audioPath)) {
+            return;
+        }
+
+        if (!@unlink($audioPath)) {
+            // Not worth failing the job over — the transcript is already saved and the only
+            // cost is a stale file. Log it so the leak is visible if it becomes a pattern.
+            $this->logger->warning('Could not delete transcribed audio', [
+                'recording' => (string) $recording->getId(),
+                'path' => $audioPath,
+            ]);
+        }
     }
 
     private function publishStatus(Recording $recording): void

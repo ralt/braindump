@@ -377,6 +377,7 @@
                     <span class="badge badge-required">Required</span>
                 </div>
                 <p>Shared mount at <code>/storage/audio</code> for uploaded audio files. Both the web container (receives uploads) and the transcription worker (sends audio to Whisper) need access to the same files. Without shared storage, the worker can't read what the web container wrote.</p>
+                <p>Usage stays flat rather than growing: the worker deletes each file once its transcript is saved. Only unresolved recordings &mdash; transcription failed, or returned an empty transcript &mdash; keep their audio, so it can be retried or downloaded.</p>
             </div>
 
             <div class="component">
@@ -453,7 +454,9 @@
    |                           |                          |&lt;-----------------------|
    |                           |              save text--&gt;| PostgreSQL             |
    |        SSE: "completed"   |        publish           |                        |
-   |&lt;------------- Mercure ----|&lt;-------------------------|                        |</div>
+   |&lt;------------- Mercure ----|&lt;-------------------------|                        |
+   |                           |            delete audio-&gt;| Network Storage        |
+   |                           |          (kept on failure, downloadable)          |</div>
 
         <h3 style="margin-top: 2.5rem; margin-bottom: 0.5rem;">Rewriting Chat Flow</h3>
         <p>The chat lives inline on the recording page. There is one <code>AiSession</code> per (user, recording) and a child <code>AiMessage</code> per turn. When the user posts a message, the same HTTP request persists it, calls the AI provider, and publishes deltas to a per-session Mercure topic as they arrive. The browser subscribes to that topic and stitches deltas onto the assistant bubble in real time. <code>ignore_user_abort(true)</code> ensures the assistant message gets persisted even if the browser closes mid-stream.</p>

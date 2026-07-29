@@ -25,6 +25,8 @@ use Symfony\Component\Uid\Uuid;
 
 class RecordingController extends AbstractController
 {
+    private const int MAX_AUDIO_BYTES = 24 * 1024 * 1024;
+
     public function __construct(
         private RecordingRepository $recordingRepository,
         private AiSessionRepository $aiSessionRepository,
@@ -118,6 +120,9 @@ class RecordingController extends AbstractController
 
         return [
             'recording' => $recording,
+            // The file is the source of truth rather than a column: the transcription worker
+            // deletes it on success, and nothing writes back to say so.
+            'audioAvailable' => is_file($this->audioStoragePath . '/' . $recording->getAudioFilePath()),
             'aiAvailable' => $aiAvailable,
             'aiSession' => $aiSession,
             'autoFirstMessage' => $autoFirstMessage,
@@ -142,8 +147,11 @@ class RecordingController extends AbstractController
             return $this->json(['error' => 'No audio file provided'], Response::HTTP_BAD_REQUEST);
         }
 
-        if ($audioFile->getSize() > 26 * 1024 * 1024) {
-            return $this->json(['error' => 'File too large (max 25MB)'], Response::HTTP_BAD_REQUEST);
+        // OpenAI's transcription endpoint rejects requests over 25 MB. Cap a MiB below that
+        // so the multipart envelope we wrap the file in can't push a just-under-the-line
+        // upload over the limit at transcription time, hours after the user hit stop.
+        if ($audioFile->getSize() > self::MAX_AUDIO_BYTES) {
+            return $this->json(['error' => 'File too large (max 24MB)'], Response::HTTP_BAD_REQUEST);
         }
 
         $recording = new Recording();
@@ -168,6 +176,27 @@ class RecordingController extends AbstractController
             'status' => $recording->getStatus()->value,
             'redirect' => $this->generateUrl('app_recording_show', ['id' => $recording->getId()]),
         ], Response::HTTP_CREATED);
+    }
+
+    /**
+     * Audio is deleted as soon as a transcription succeeds, so this only resolves while a
+     * recording is still pending, transcribing, or failed — which is exactly when you'd
+     * want the file back to process it elsewhere.
+     */
+    #[Route('/recordings/{id}/audio', name: 'app_recording_audio', methods: ['GET'])]
+    public function audio(Recording $recording): Response
+    {
+        $this->denyAccessUnlessGranted('RECORDING_VIEW', $recording);
+
+        $audioPath = $this->audioStoragePath . '/' . $recording->getAudioFilePath();
+        if (!is_file($audioPath)) {
+            throw $this->createNotFoundException('The audio for this recording is no longer stored.');
+        }
+
+        $title = $recording->getTitle() !== '' ? $recording->getTitle() : 'recording';
+        $downloadName = preg_replace('/[^A-Za-z0-9 _-]+/', '', $title) . '.webm';
+
+        return $this->file($audioPath, $downloadName);
     }
 
     #[Route('/api/recordings/{id}/retry', name: 'api_recording_retry', methods: ['POST'])]

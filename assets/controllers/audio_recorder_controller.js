@@ -44,7 +44,9 @@ export default class extends Controller {
 
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
-                audio: { deviceId: { exact: deviceId } }
+                // channelCount is an "ideal" constraint, not exact — a device that can only
+                // deliver stereo still works, it just costs more bytes.
+                audio: { deviceId: { exact: deviceId }, channelCount: 1 }
             })
 
             this.chunks = []
@@ -52,6 +54,13 @@ export default class extends Controller {
 
             this.mediaRecorder = new MediaRecorder(stream, {
                 mimeType: this.getSupportedMimeType(),
+                // Whisper resamples everything to 16 kHz mono before transcribing, so
+                // anything above that band is encoded and stored for nothing. 24 kbps is
+                // about the cheapest Opus setting that still gives the full ~8 kHz of
+                // wideband speech Whisper expects; going lower drops to narrowband and
+                // starts costing accuracy on fricatives. Left unset, browsers pick
+                // ~128 kbps, which capped recordings at roughly 25 minutes.
+                audioBitsPerSecond: 24000,
             })
 
             this.mediaRecorder.ondataavailable = (e) => {
@@ -59,7 +68,9 @@ export default class extends Controller {
                     this.chunks.push(e.data)
                     this.totalSize += e.data.size
 
-                    this.fileSizeTarget.textContent = ` - ${(this.totalSize / 1024 / 1024).toFixed(1)} MB`
+                    const usedMb = (this.totalSize / 1024 / 1024).toFixed(1)
+                    const maxMb = Math.round(this.maxFileSizeValue / 1024 / 1024)
+                    this.fileSizeTarget.textContent = ` - ${usedMb} MB of ${maxMb} MB`
 
                     // Size warnings
                     if (this.totalSize >= this.maxFileSizeValue * 0.9) {

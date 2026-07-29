@@ -360,7 +360,7 @@
 
 <div class="hero">
     <h1>Braindump</h1>
-    <p class="tagline">Not a quick voice memo app. Braindump is for the longer stuff &mdash; the 5-minute architecture walkthrough, the 15-minute problem deep-dive. Dump your brain, get it transcribed, then refine it with an inline AI rewriting chat.</p>
+    <p class="tagline">Not a quick voice memo app. Braindump is for the longer stuff &mdash; the 5-minute architecture walkthrough, the 30-minute problem deep-dive. Dump your brain, get it transcribed, then refine it with an inline AI rewriting chat.</p>
     <a href="https://github.com/ralt/braindump" class="cta">View on GitHub</a>
     <a href="architecture.html" class="cta" style="margin-left: 0.75rem; background: transparent; color: var(--accent); border: 2px solid var(--accent);">Architecture</a>
 </div>
@@ -373,12 +373,12 @@
             <div class="step">
                 <div class="number">1</div>
                 <h3>Record</h3>
-                <p>Hit record in your browser. Pick your microphone. Talk for as long as you need &mdash; this is for real explanations, not quick memos. Give it a title.</p>
+                <p>Hit record in your browser. Pick your microphone. Talk for as long as you need &mdash; this is for real explanations, not quick memos, and a recording runs to about 2 hours 20 minutes. Give it a title.</p>
             </div>
             <div class="step">
                 <div class="number">2</div>
                 <h3>Transcribe</h3>
-                <p>A background worker transcribes your audio on-device with a local Whisper model &mdash; no API key, nothing leaves your machine. The text appears automatically when it's ready. Want the cloud? Switch to the OpenAI Whisper API with one env var.</p>
+                <p>A background worker transcribes your audio on-device with a local Whisper model &mdash; no API key, nothing leaves your machine. The text appears automatically when it's ready, and the audio file is deleted once it has been transcribed. Want the cloud? Switch to the OpenAI Whisper API with one env var.</p>
             </div>
             <div class="step">
                 <div class="number">3</div>
@@ -478,6 +478,10 @@
             <div class="arch-card">
                 <h3>Shared Network Storage</h3>
                 <p>Audio files must be accessible by both the web app and the transcription worker. Symfony Cloud's network-storage service gives both containers access to the same files.</p>
+            </div>
+            <div class="arch-card">
+                <h3>Audio Is Disposable</h3>
+                <p>Whisper resamples everything to 16 kHz mono, so recordings are captured as mono 24 kbps Opus &mdash; same accuracy, a fifth of the bytes. Once the transcript is saved the audio is deleted, so storage never grows. Failed transcriptions keep their audio, with a download link.</p>
             </div>
             <div class="arch-card">
                 <h3>PostgreSQL for Everything</h3>

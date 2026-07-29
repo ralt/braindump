@@ -1,6 +1,6 @@
 # Braindump
 
-Braindump is not a quick voice memo app. It's for the longer stuff — the 5-minute explanation of an architecture you're considering, the 15-minute walkthrough of a problem you're stuck on, the detailed brain dump you do when you need to get everything out of your head and into something searchable. The name is literal: dump your brain, then work with what comes out.
+Braindump is not a quick voice memo app. It's for the longer stuff — the 5-minute explanation of an architecture you're considering, the 30-minute walkthrough of a problem you're stuck on, the detailed brain dump you do when you need to get everything out of your head and into something searchable. The name is literal: dump your brain, then work with what comes out.
 
 Record audio in your browser, get it transcribed **on-device** (a local Whisper model — no API key, nothing leaves your machine), search across all your transcriptions, and refine the text with an inline AI rewriting chat. Runs fully local out of the box; add hosted services (OpenAI, PostgreSQL, SSO…) only when you want them. Built with Symfony, deployed on Symfony Cloud.
 
@@ -8,7 +8,8 @@ Record audio in your browser, get it transcribed **on-device** (a local Whisper 
 
 ## Features
 
-- **Audio Recording** — Record directly from the browser with microphone selection. Up to 25MB per recording (the OpenAI Whisper file size limit).
+- **Audio Recording** — Record directly from the browser with microphone selection. Captured as mono 24 kbps Opus, which is roughly 2 hours 20 minutes within the 24 MB per-recording cap (kept just under OpenAI's 25 MB transcription limit).
+- **Ephemeral Audio** — The transcript is the artifact worth keeping, so the audio file is deleted as soon as it has been transcribed successfully. If transcription fails — or comes back empty — the audio is kept indefinitely and offered as a download, so a failed run never costs you the recording.
 - **Automatic Transcription** — Audio is transcribed in the background. By default a local Whisper model (whisper.cpp) runs on-device with no API key; set `TRANSCRIBER=openai` to use the hosted OpenAI Whisper API instead. If the user left the title field blank, an LLM generates a short descriptive title when one is configured — otherwise the title falls back to the transcript's opening words. Status updates live via Mercure.
 - **Full-Text Search** — PostgreSQL full-text search across titles and transcriptions, with configurable OpenSearch backend.
 - **Rewriting Chat** — On the recording page, the transcript is fed to an AI assistant scoped to rewriting/editing. Stream replies appear inline, history persists across reloads, and there's a voice-input button (with mic device picker) for quick refinements. Supports multiple providers (Anthropic, OpenAI, Google, Groq, Mistral, DeepSeek, xAI, OpenRouter). Each user provides their own API key, encrypted at rest (libsodium keyed from `APP_SECRET` when self-hosted, Symfony Cloud Vault KMS in production).
@@ -33,6 +34,14 @@ Mercure handles persistent SSE connections with async I/O, so the PHP applicatio
 ### Why network storage for audio files
 
 Audio files need to be accessible by both the web application (which receives the upload) and the transcription worker (which reads the file to send to OpenAI). On Symfony Cloud, the web container and worker containers are separate processes that don't share a filesystem. The `network-storage` service provides a shared mount that both can access, solving this cleanly without needing to store files in the database or an external object store.
+
+### Why recordings are mono 24 kbps, and deleted once transcribed
+
+Whisper resamples its input to 16 kHz mono before transcribing — the hosted API does it internally, and the local whisper.cpp path does it explicitly with `ffmpeg -ar 16000 -ac 1`. Any fidelity above that band is encoded, uploaded, and stored only to be thrown away. Left unconstrained, browsers record Opus at around 128 kbps stereo, which put roughly 25 minutes inside the 25 MB limit OpenAI enforces on transcription requests.
+
+Recording mono at 24 kbps instead is about the cheapest setting that still delivers the full ~8 kHz of wideband speech Whisper expects. Lower bitrates push Opus into narrowband, which trims the 4–8 kHz range where fricatives and sibilants live and costs real accuracy. The result is roughly 2 hours 20 minutes per recording with no change to transcription quality — long enough that splitting long audio into overlapping chunks and reconciling the transcripts isn't worth building.
+
+That also makes the audio disposable. Once a transcript is saved the file is an input we're done with, so the worker deletes it — no retention window, no cleanup cron, no growth in the storage bill. The exception is failure: a recording whose transcription failed, or that came back with an empty transcript, keeps its audio indefinitely and exposes a download link, because that's the case where losing the file means losing the recording.
 
 ### Why Vault KMS for API key encryption
 
