@@ -434,7 +434,7 @@
         <h2>Data Flows</h2>
 
         <h3 style="margin-bottom: 0.5rem;">Transcription Flow</h3>
-        <p>From browser audio recording to searchable text.</p>
+        <p>From browser audio recording to searchable text. Recording length is bounded by OpenAI's 25 MB per-request transcription limit, not by a timer: capturing mono 24 kbps Opus &mdash; all Whisper can use, since it downsamples to 16 kHz mono regardless &mdash; puts roughly <strong>2 hours 20 minutes</strong> inside a 24 MB cap, which is why chunking long audio and reconciling the transcripts is not part of this flow.</p>
         <div class="flow-diagram">Browser                    Web Container              Worker                   OpenAI
    |                           |                          |                        |
    |  POST /recordings/new     |                          |                        |

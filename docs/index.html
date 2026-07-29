@@ -71,6 +71,16 @@
             max-width: 600px;
             margin: 0 auto 2rem;
         }
+        .hero .hero-badge {
+            display: inline-block;
+            margin: 0 auto 2rem;
+            padding: 0.4rem 1rem;
+            border: 1px solid var(--accent);
+            border-radius: 9999px;
+            color: var(--accent);
+            font-size: 0.95rem;
+            font-weight: 600;
+        }
         .hero .cta {
             display: inline-block;
             padding: 0.8rem 2rem;
@@ -361,6 +371,7 @@
 <div class="hero">
     <h1>Braindump</h1>
     <p class="tagline">Not a quick voice memo app. Braindump is for the longer stuff &mdash; the 5-minute architecture walkthrough, the 30-minute problem deep-dive. Dump your brain, get it transcribed, then refine it with an inline AI rewriting chat.</p>
+    <p><span class="hero-badge">Up to ~2h20m in a single recording</span></p>
     <a href="https://github.com/ralt/braindump" class="cta">View on GitHub</a>
     <a href="architecture.html" class="cta" style="margin-left: 0.75rem; background: transparent; color: var(--accent); border: 2px solid var(--accent);">Architecture</a>
 </div>
@@ -430,8 +441,8 @@
         <h2>Features</h2>
         <div class="features">
             <div class="feature">
-                <h3>Browser Audio Recording</h3>
-                <p>Choose your microphone, hit record. WebM/Opus compression keeps files small. Visual timer and file size indicator.</p>
+                <h3>Long-Form Browser Recording</h3>
+                <p>Choose your microphone, hit record, and keep talking &mdash; a single recording runs to about <strong>2 hours 20 minutes</strong>. Mono 24 kbps Opus is transparent to Whisper (which downsamples to 16 kHz mono anyway) while being small enough that length stops being the constraint. Live waveform, elapsed timer, and a readout of how much recording time you have left.</p>
             </div>
             <div class="feature">
                 <h3>Background Transcription</h3>
