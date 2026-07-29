@@ -1,5 +1,12 @@
 import { Controller } from '@hotwired/stimulus'
 
+// Whisper resamples everything to 16 kHz mono before transcribing, so anything above that
+// band is encoded and stored for nothing. 24 kbps is about the cheapest Opus setting that
+// still gives the full ~8 kHz of wideband speech Whisper expects; going lower drops to
+// narrowband and starts costing accuracy on fricatives. Left unset, browsers pick
+// ~128 kbps, which capped recordings at roughly 25 minutes.
+const AUDIO_BITS_PER_SECOND = 24000
+
 export default class extends Controller {
     static targets = ['title', 'microphone', 'startBtn', 'stopBtn', 'status', 'timer', 'fileSize', 'uploadStatus', 'sizeWarning', 'sizeWarningUrgent', 'waveform']
     static values = {
@@ -54,13 +61,7 @@ export default class extends Controller {
 
             this.mediaRecorder = new MediaRecorder(stream, {
                 mimeType: this.getSupportedMimeType(),
-                // Whisper resamples everything to 16 kHz mono before transcribing, so
-                // anything above that band is encoded and stored for nothing. 24 kbps is
-                // about the cheapest Opus setting that still gives the full ~8 kHz of
-                // wideband speech Whisper expects; going lower drops to narrowband and
-                // starts costing accuracy on fricatives. Left unset, browsers pick
-                // ~128 kbps, which capped recordings at roughly 25 minutes.
-                audioBitsPerSecond: 24000,
+                audioBitsPerSecond: AUDIO_BITS_PER_SECOND,
             })
 
             this.mediaRecorder.ondataavailable = (e) => {
@@ -68,9 +69,7 @@ export default class extends Controller {
                     this.chunks.push(e.data)
                     this.totalSize += e.data.size
 
-                    const usedMb = (this.totalSize / 1024 / 1024).toFixed(1)
-                    const maxMb = Math.round(this.maxFileSizeValue / 1024 / 1024)
-                    this.fileSizeTarget.textContent = ` - ${usedMb} MB of ${maxMb} MB`
+                    this.updateRemaining()
 
                     // Size warnings
                     if (this.totalSize >= this.maxFileSizeValue * 0.9) {
@@ -173,9 +172,44 @@ export default class extends Controller {
 
     updateTimer() {
         const elapsed = Math.floor((Date.now() - this.startTime) / 1000)
-        const minutes = String(Math.floor(elapsed / 60)).padStart(2, '0')
+        const hours = Math.floor(elapsed / 3600)
+        const minutes = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0')
         const seconds = String(elapsed % 60).padStart(2, '0')
-        this.timerTarget.textContent = `${minutes}:${seconds}`
+        // Recordings can now run past two hours, so roll over into an hours field rather
+        // than counting minutes indefinitely.
+        this.timerTarget.textContent = hours > 0
+            ? `${hours}:${minutes}:${seconds}`
+            : `${minutes}:${seconds}`
+    }
+
+    /**
+     * How much recording time is left, which is what you actually want to know mid-sentence.
+     * Derived from the observed byte rate rather than the requested bitrate: browsers treat
+     * audioBitsPerSecond as a hint, Opus is variable-rate, and the container adds overhead.
+     * The measurement is too noisy in the first few seconds, so the nominal rate covers that.
+     */
+    updateRemaining() {
+        const elapsed = (Date.now() - this.startTime) / 1000
+        const bytesPerSecond = elapsed >= 3 && this.totalSize > 0
+            ? this.totalSize / elapsed
+            : AUDIO_BITS_PER_SECOND / 8
+
+        const secondsLeft = Math.max(0, (this.maxFileSizeValue - this.totalSize) / bytesPerSecond)
+        const usedMb = (this.totalSize / 1024 / 1024).toFixed(1)
+        const maxMb = Math.round(this.maxFileSizeValue / 1024 / 1024)
+
+        this.fileSizeTarget.textContent =
+            ` - about ${this.formatRemaining(secondsLeft)} left (${usedMb} of ${maxMb} MB)`
+    }
+
+    formatRemaining(seconds) {
+        const total = Math.round(seconds)
+        const hours = Math.floor(total / 3600)
+        const minutes = Math.floor((total % 3600) / 60)
+
+        if (hours > 0) return `${hours}h ${String(minutes).padStart(2, '0')}m`
+        if (minutes > 0) return `${minutes} min`
+        return `${total}s`
     }
 
     getSupportedMimeType() {
