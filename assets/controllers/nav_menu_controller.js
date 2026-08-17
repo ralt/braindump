@@ -4,19 +4,18 @@ import { Controller } from '@hotwired/stimulus'
  * Collapses the navbar links behind a hamburger button on narrow viewports.
  *
  * The breakpoint lives in CSS, not here: the panel is a normal flex row above it and an
- * absolutely-positioned dropdown below it, so this controller only ever toggles classes and
+ * absolutely-positioned dropdown below it, so this controller only ever toggles one class and
  * never needs to know which layout is in effect.
  *
- * It fails open. Collapsing is gated on a nav-collapsed class that this controller adds on
- * connect, so if scripting never starts the links stay visible as the wrapping row they were
- * before — a navbar whose only control is a button nothing listens to would be worse than an
- * ugly one.
+ * Collapsing deliberately does not depend on this controller having run. Gating it on a class
+ * added here meant the menu painted expanded and snapped shut once the module loaded, which is
+ * a flash on every single page load. Scripting's only job is opening and closing; the collapsed
+ * layout is the CSS default, and the no-JS fallback is a <noscript> override.
  */
 export default class extends Controller {
     static targets = ['panel', 'toggle']
 
     connect() {
-        this.element.classList.add('nav-collapsed')
         this.close()
     }
 

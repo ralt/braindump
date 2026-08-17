@@ -825,25 +825,19 @@
                     .chat-sidebar { max-height: 220px; }
                 }
 
-                /* Small screens: without scripting the navbar wraps instead of forcing
-                   horizontal scroll; with it, the links collapse behind the hamburger. */
+                /* Small screens: the links collapse behind the hamburger. Driven entirely by
+                   this media query and not by any class scripting has to add — a collapse that
+                   waits for JS shows the expanded menu on every page load and then snaps shut.
+                   The no-JS fallback is the <noscript> override in the head, which can only
+                   ever make the menu more visible, never less. */
                 @media (max-width: 640px) {
                     .navbar {
-                        height: auto;
-                        min-height: 56px;
-                        flex-wrap: wrap;
-                        padding: 0.625rem 1rem;
-                        gap: 0.375rem 1rem;
-                    }
-                    .navbar .nav-links { flex-wrap: wrap; gap: 0.375rem 1rem; }
-
-                    .navbar.nav-collapsed {
                         position: relative;
-                        flex-wrap: nowrap;
                         height: 56px;
+                        padding: 0.625rem 1rem;
                         gap: 0.5rem;
                     }
-                    .navbar.nav-collapsed .nav-toggle {
+                    .nav-toggle {
                         display: inline-flex;
                         align-items: center;
                         justify-content: center;
@@ -856,11 +850,11 @@
                         padding: 0;
                         cursor: pointer;
                     }
-                    .navbar.nav-collapsed .nav-toggle:hover { border-color: var(--accent); color: var(--text); }
-                    .navbar.nav-collapsed .nav-toggle svg { width: 18px; height: 18px; }
+                    .nav-toggle:hover { border-color: var(--accent); color: var(--text); }
+                    .nav-toggle svg { width: 18px; height: 18px; }
                     /* Overlays the page rather than pushing it down, so opening the menu doesn't
                        reflow whatever the user was reading underneath. */
-                    .navbar.nav-collapsed .nav-links {
+                    .navbar .nav-links {
                         display: none;
                         position: absolute;
                         top: 100%;
@@ -874,9 +868,9 @@
                         border-bottom: 1px solid var(--border);
                         box-shadow: 0 8px 24px rgba(0,0,0,0.12);
                     }
-                    .navbar.nav-collapsed.nav-open .nav-links { display: flex; }
-                    .navbar.nav-collapsed .nav-links a { padding: 0.625rem 0.75rem; border-radius: 8px; }
-                    .navbar.nav-collapsed .nav-links a:hover { background: var(--border-light); }
+                    .navbar.nav-open .nav-links { display: flex; }
+                    .navbar .nav-links a { padding: 0.625rem 0.75rem; border-radius: 8px; }
+                    .navbar .nav-links a:hover { background: var(--border-light); }
 
                     .container { padding: 1.25rem 1rem; }
                     .flex-between { flex-wrap: wrap; gap: 0.5rem; }
@@ -884,6 +878,30 @@
                 }
             </style>
         {% endblock %}
+
+        {# Without scripting the hamburger has nothing to toggle, so the links go back to being
+           the wrapping row they were before it existed. Later in the document and at equal
+           specificity, so it wins without !important; .nav-open is unreachable here, which is
+           why those rules need no undoing. #}
+        <noscript>
+            <style>
+                @media (max-width: 640px) {
+                    .navbar { height: auto; min-height: 56px; flex-wrap: wrap; gap: 0.375rem 1rem; }
+                    .navbar .nav-links {
+                        display: flex;
+                        position: static;
+                        flex-direction: row;
+                        flex-wrap: wrap;
+                        gap: 0.375rem 1rem;
+                        padding: 0;
+                        background: none;
+                        border: 0;
+                        box-shadow: none;
+                    }
+                    .nav-toggle { display: none; }
+                }
+            </style>
+        </noscript>
 
         {% block javascripts %}
             {% block importmap %}{{ importmap('app') }}{% endblock %}
