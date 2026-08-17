@@ -158,13 +158,19 @@
                     padding: 0 1.5rem;
                     height: 56px;
                     display: flex;
-                    justify-content: space-between;
                     align-items: center;
+                    gap: 1.25rem;
                 }
                 .navbar a { color: var(--text-muted); text-decoration: none; font-size: 0.875rem; font-weight: 500; transition: color 0.15s; }
                 .navbar a:hover { color: var(--text); }
-                .navbar .brand { color: var(--text); font-weight: 700; font-size: 1.125rem; letter-spacing: -0.025em; }
+                /* Pushes everything after it to the right — the links and the actions then sit
+                   together as one group, which space-between could not do with three children. */
+                .navbar .brand { color: var(--text); font-weight: 700; font-size: 1.125rem; letter-spacing: -0.025em; margin-right: auto; }
                 .navbar .nav-links { display: flex; gap: 1.25rem; align-items: center; }
+                .navbar-actions { display: flex; gap: 0.75rem; align-items: center; }
+                /* Only ever shown by the mobile rules below, and only once the controller has
+                   marked the navbar collapsible. */
+                .nav-toggle { display: none; }
 
                 .container { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem; }
 
@@ -792,8 +798,8 @@
                     .chat-sidebar { max-height: 220px; }
                 }
 
-                /* Small screens: let the navbar wrap instead of forcing
-                   horizontal scroll, and tighten spacing */
+                /* Small screens: without scripting the navbar wraps instead of forcing
+                   horizontal scroll; with it, the links collapse behind the hamburger. */
                 @media (max-width: 640px) {
                     .navbar {
                         height: auto;
@@ -803,6 +809,48 @@
                         gap: 0.375rem 1rem;
                     }
                     .navbar .nav-links { flex-wrap: wrap; gap: 0.375rem 1rem; }
+
+                    .navbar.nav-collapsed {
+                        position: relative;
+                        flex-wrap: nowrap;
+                        height: 56px;
+                        gap: 0.5rem;
+                    }
+                    .navbar.nav-collapsed .nav-toggle {
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        background: var(--surface);
+                        color: var(--text-muted);
+                        border: 1px solid var(--border);
+                        border-radius: 8px;
+                        width: 34px;
+                        height: 30px;
+                        padding: 0;
+                        cursor: pointer;
+                    }
+                    .navbar.nav-collapsed .nav-toggle:hover { border-color: var(--accent); color: var(--text); }
+                    .navbar.nav-collapsed .nav-toggle svg { width: 18px; height: 18px; }
+                    /* Overlays the page rather than pushing it down, so opening the menu doesn't
+                       reflow whatever the user was reading underneath. */
+                    .navbar.nav-collapsed .nav-links {
+                        display: none;
+                        position: absolute;
+                        top: 100%;
+                        left: 0;
+                        right: 0;
+                        flex-direction: column;
+                        align-items: stretch;
+                        gap: 0;
+                        padding: 0.5rem;
+                        background: var(--surface);
+                        border-bottom: 1px solid var(--border);
+                        box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+                    }
+                    .navbar.nav-collapsed.nav-open .nav-links { display: flex; }
+                    .navbar.nav-collapsed .nav-links a { padding: 0.625rem 0.75rem; border-radius: 8px; }
+                    .navbar.nav-collapsed .nav-links a:hover { background: var(--border-light); }
+
                     .container { padding: 1.25rem 1rem; }
                     .flex-between { flex-wrap: wrap; gap: 0.5rem; }
                     table th, table td { padding: 0.5rem 0.625rem; }
@@ -816,9 +864,12 @@
     </head>
     <body>
         {% if app.user %}
-        <nav class="navbar">
+        <nav class="navbar" {{ stimulus_controller('nav-menu') }}
+             {{ stimulus_action('nav-menu', 'closeOnOutsideClick', 'click@window')|stimulus_action('nav-menu', 'closeOnEscape', 'keydown.esc@window') }}>
             <a href="{{ path('app_recording_index') }}" class="brand">Braindump</a>
-            <div class="nav-links">
+            <div class="nav-links" id="nav-links"
+                 {{ stimulus_target('nav-menu', 'panel') }}
+                 {{ stimulus_action('nav-menu', 'closeOnNavigate') }}>
                 <a href="{{ path('app_recording_index') }}">Recordings</a>
                 <a href="{{ path('app_recording_new') }}">New</a>
                 <a href="{{ path('app_skill_index') }}">Skills</a>
@@ -827,11 +878,20 @@
                     <a href="{{ path('admin') }}">Admin</a>
                 {% endif %}
                 <a href="{{ path('app_logout') }}" class="nav-muted">Logout</a>
+            </div>
+            {# Outside .nav-links so the theme switch stays reachable in the bar itself on
+               mobile rather than being buried behind the hamburger. #}
+            <div class="navbar-actions">
                 <button class="theme-toggle" role="switch" aria-checked="false" aria-label="Toggle dark mode">
                     <span class="knob">
                         <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
                         <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
                     </span>
+                </button>
+                <button type="button" class="nav-toggle" aria-label="Menu" aria-expanded="false" aria-controls="nav-links"
+                        {{ stimulus_target('nav-menu', 'toggle') }}
+                        {{ stimulus_action('nav-menu', 'toggle') }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
                 </button>
             </div>
         </nav>
