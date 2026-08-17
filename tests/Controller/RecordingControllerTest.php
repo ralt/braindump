@@ -191,6 +191,30 @@ class RecordingControllerTest extends DatabaseTestCase
         $this->assertCount(1, $crawler->filter('a[data-recording-status-target="audioOnly"][href*="/audio"]'));
     }
 
+    /**
+     * The copy button is useless if it and the transcript aren't wired to the same controller
+     * instance, and that mistake renders identically to a working one.
+     */
+    public function testTranscriptExposesACopyButton(): void
+    {
+        $client = static::createClient();
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        $user = $this->createUser($em);
+        $recording = $this->createRecording($em, $user, RecordingStatus::Completed);
+
+        $client->loginUser($user);
+        $crawler = $client->request('GET', '/recordings/' . $recording->getId());
+
+        $this->assertResponseIsSuccessful();
+        $card = $crawler->filter('[data-controller~="clipboard"]');
+        $this->assertCount(1, $card);
+        $this->assertCount(1, $card->filter('[data-clipboard-target="button"]'));
+        $this->assertSame(
+            'Test transcription text',
+            trim($card->filter('[data-clipboard-target="source"]')->text()),
+        );
+    }
+
     public function testRetryOnFailedRecording(): void
     {
         $client = static::createClient();

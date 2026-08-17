@@ -1,8 +1,13 @@
 {% if recording.status.value == 'completed' and recording.transcription %}
     {% if not aiSession %}
-        <div class="card transcript-card">
-            <h2 class="mb-1">Transcription</h2>
-            <div class="transcription-text">{{ recording.transcription }}</div>
+        <div class="card transcript-card" {{ stimulus_controller('clipboard') }}>
+            <div class="flex flex-between flex-center mb-1">
+                <h2>Transcription</h2>
+                <button type="button" class="btn btn-secondary btn-sm"
+                        {{ stimulus_target('clipboard', 'button') }}
+                        {{ stimulus_action('clipboard', 'copy') }}>Copy</button>
+            </div>
+            <div class="transcription-text" {{ stimulus_target('clipboard', 'source') }}>{{ recording.transcription }}</div>
         </div>
 
         {% if aiAvailable %}
