@@ -21,7 +21,7 @@ export default class extends Controller {
 
     connect() {
         this.openMercure()
-        this.renderHistoryMarkdown()
+        this.prepareHistory()
         this.scrollToBottom()
         this.inputTarget.addEventListener('keydown', this.onKeyDown.bind(this))
 
@@ -53,16 +53,63 @@ export default class extends Controller {
         setTimeout(fire, 2000)
     }
 
-    renderHistoryMarkdown() {
-        for (const bubble of this.messagesTarget.querySelectorAll('.chat-bubble.assistant')) {
+    prepareHistory() {
+        for (const bubble of this.messagesTarget.querySelectorAll('.chat-bubble')) {
             const body = bubble.querySelector('.chat-bubble-body')
-            if (body) this.renderMarkdownInto(body, body.textContent)
+            if (!body) continue
+
+            // Read before rendering: parsing markdown into the element in place overwrites the
+            // only copy of the source text in the DOM.
+            const raw = body.textContent
+            this.addCopyButton(bubble, raw)
+
+            if (bubble.classList.contains('assistant')) {
+                this.renderMarkdownInto(body, raw)
+            }
         }
     }
 
     renderMarkdownInto(element, rawText) {
         const html = DOMPurify.sanitize(marked.parse(rawText))
         element.innerHTML = html
+    }
+
+    /**
+     * Wires a bubble up to the clipboard controller and gives it a Copy button.
+     *
+     * Done from JS for server-rendered and streamed bubbles alike, rather than half here and
+     * half in the Twig template. Two code paths producing the same markup drift, and there's
+     * nothing to lose by owning it here: the chat is entirely JS-driven, down to the markdown
+     * rendering, so a bubble without scripting has no copy button to miss.
+     *
+     * The raw markdown is handed over as a Stimulus value, because what ends up in the DOM is
+     * the rendered HTML — copying that back out would paste prose with the formatting silently
+     * dropped.
+     */
+    addCopyButton(bubble, raw) {
+        const role = bubble.querySelector('.chat-bubble-role')
+        if (!role || role.querySelector('.chat-bubble-copy')) return
+
+        bubble.dataset.controller = 'clipboard'
+        bubble.dataset.clipboardRawValue = raw
+        bubble.querySelector('.chat-bubble-body').dataset.clipboardTarget = 'source'
+
+        // The role label carries the opacity that dims it, so its own text is wrapped to keep
+        // the button out of the dimming while both sit on the same row. Reusing the existing
+        // text rather than deriving it, so whatever the server called this role survives.
+        const label = document.createElement('span')
+        label.className = 'chat-bubble-role-text'
+        label.textContent = role.textContent.trim()
+        role.textContent = ''
+
+        const button = document.createElement('button')
+        button.type = 'button'
+        button.className = 'chat-bubble-copy'
+        button.textContent = 'Copy'
+        button.dataset.clipboardTarget = 'button'
+        button.dataset.action = 'clipboard#copy'
+
+        role.append(label, button)
     }
 
     disconnect() {
@@ -103,6 +150,9 @@ export default class extends Controller {
             const newRaw = (this.assistantRaw.get(payload.messageId) || '') + payload.content
             this.assistantRaw.set(payload.messageId, newRaw)
             this.renderMarkdownInto(body, newRaw)
+            // Kept in step with every delta so a copy mid-stream gets what's on screen. The
+            // in-memory map is dropped on 'done', so the attribute is what outlives the stream.
+            bubble.dataset.clipboardRawValue = newRaw
             this.scrollToBottom()
         } else if (payload.type === 'done') {
             this.assistantRaw.delete(payload.messageId)
@@ -132,6 +182,7 @@ export default class extends Controller {
 
         bubble.appendChild(roleEl)
         bubble.appendChild(body)
+        this.addCopyButton(bubble, content)
         this.messagesTarget.appendChild(bubble)
         this.scrollToBottom()
         return bubble

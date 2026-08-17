@@ -4,7 +4,13 @@ import { Controller } from '@hotwired/stimulus'
 const CONFIRM_MS = 2000
 
 /**
- * Copies the text content of a target element to the clipboard.
+ * Copies text to the clipboard: the raw value when one is set, otherwise the text content of
+ * the source element.
+ *
+ * The raw value exists because the source element is sometimes a *rendering* of the text rather
+ * than the text — the AI chat parses markdown into HTML in place, so its textContent is prose
+ * with the syntax stripped out, which is not what you want to paste into anything that
+ * understands markdown.
  *
  * The button doubles as the feedback: a copy that silently succeeds is indistinguishable from
  * one that silently failed, and the clipboard is not something the user can glance at to check.
@@ -14,6 +20,9 @@ const CONFIRM_MS = 2000
  */
 export default class extends Controller {
     static targets = ['source', 'button']
+    static values = {
+        raw: String,
+    }
 
     confirmTimeout = null
 
@@ -22,7 +31,7 @@ export default class extends Controller {
     }
 
     async copy() {
-        const text = this.sourceTarget.textContent
+        const text = this.rawValue !== '' ? this.rawValue : this.sourceTarget.textContent
 
         try {
             await navigator.clipboard.writeText(text)
@@ -30,7 +39,9 @@ export default class extends Controller {
         } catch {
             this.flash('Press Ctrl+C')
             // Leaving it selected turns the failure into a one-keystroke manual copy rather
-            // than a dead end.
+            // than a dead end. It selects what's on screen, so for a rendered source this
+            // fallback gives the rendering rather than the raw text — still better than
+            // nothing on the insecure origins where it's the only path available.
             this.selectSource()
         }
     }
