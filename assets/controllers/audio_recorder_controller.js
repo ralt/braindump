@@ -8,7 +8,7 @@ import { Controller } from '@hotwired/stimulus'
 const AUDIO_BITS_PER_SECOND = 24000
 
 export default class extends Controller {
-    static targets = ['title', 'microphone', 'startBtn', 'stopBtn', 'status', 'timer', 'fileSize', 'uploadStatus', 'sizeWarning', 'sizeWarningUrgent', 'waveform']
+    static targets = ['title', 'microphone', 'startBtn', 'pauseBtn', 'stopBtn', 'status', 'timer', 'fileSize', 'uploadStatus', 'sizeWarning', 'sizeWarningUrgent', 'waveform']
     static values = {
         uploadUrl: String,
         maxFileSize: Number,
@@ -23,6 +23,11 @@ export default class extends Controller {
     audioContext = null
     analyser = null
     animationId = null
+    // Wall-clock time is not recorded time once pausing exists: the encoder emits nothing
+    // while paused, so the timer and the remaining-time estimate both have to discount it or
+    // they drift further apart from the audio the longer someone leaves a recording parked.
+    pausedTotalMs = 0
+    pauseStartedAt = null
 
     async connect() {
         await this.loadMicrophones()
@@ -59,6 +64,8 @@ export default class extends Controller {
 
             this.chunks = []
             this.totalSize = 0
+            this.pausedTotalMs = 0
+            this.pauseStartedAt = null
 
             this.mediaRecorder = new MediaRecorder(stream, {
                 mimeType: this.getSupportedMimeType(),
@@ -86,6 +93,7 @@ export default class extends Controller {
                 }
             }
 
+            this.mimeType = this.mediaRecorder.mimeType
             this.mediaRecorder.onstop = () => this.handleStop()
 
             this.mediaRecorder.start(1000)
@@ -95,6 +103,7 @@ export default class extends Controller {
 
             this.startBtnTarget.disabled = true
             this.stopBtnTarget.disabled = false
+            this.setPauseButton(false)
             this.showTarget('status')
             this.statusTarget.className = 'alert alert-warning'
 
@@ -105,28 +114,73 @@ export default class extends Controller {
         }
     }
 
+    /**
+     * One button for both directions: while recording there is exactly one thing you can do to
+     * it besides stopping, so a separate disabled Resume button would only ever be noise.
+     */
+    togglePause() {
+        if (!this.mediaRecorder) return
+
+        if (this.mediaRecorder.state === 'recording') {
+            this.mediaRecorder.pause()
+            this.pauseStartedAt = Date.now()
+            this.setPauseButton(true)
+            this.statusTarget.className = 'alert'
+            // Freeze the trace instead of letting it run: the mic track stays live while
+            // paused, so an animated waveform would keep reacting to the room and read as
+            // "still recording" — the one thing the user just asked it not to be.
+            this.freezeWaveform()
+            this.updateTimer()
+        } else if (this.mediaRecorder.state === 'paused') {
+            this.pausedTotalMs += Date.now() - this.pauseStartedAt
+            this.pauseStartedAt = null
+            this.mediaRecorder.resume()
+            this.setPauseButton(false)
+            this.statusTarget.className = 'alert alert-warning'
+            this.thawWaveform()
+        }
+    }
+
+    setPauseButton(paused) {
+        if (!this.hasPauseBtnTarget) return
+        this.pauseBtnTarget.disabled = this.mediaRecorder === null
+        this.pauseBtnTarget.textContent = paused ? 'Resume' : 'Pause'
+        this.pauseBtnTarget.setAttribute('aria-pressed', String(paused))
+    }
+
+    /** Recorded milliseconds — wall clock minus every stretch spent paused, including the current one. */
+    recordedMs() {
+        if (!this.startTime) return 0
+
+        const open = this.pauseStartedAt === null ? 0 : Date.now() - this.pauseStartedAt
+
+        return Date.now() - this.startTime - this.pausedTotalMs - open
+    }
+
     stop() {
         // Captured here rather than in handleStop(): onstop fires asynchronously, so measuring
         // there would fold the encoder's flush time into the reported length.
-        if (this.startTime) {
-            this.elapsedSeconds = Math.round((Date.now() - this.startTime) / 1000)
-        }
+        this.elapsedSeconds = Math.round(this.recordedMs() / 1000)
 
         if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
             this.mediaRecorder.stop()
             this.mediaRecorder.stream.getTracks().forEach(t => t.stop())
         }
         clearInterval(this.timerInterval)
+        this.mediaRecorder = null
+        this.pauseStartedAt = null
         this.startBtnTarget.disabled = false
         this.stopBtnTarget.disabled = true
+        this.setPauseButton(false)
         this.stopWaveform()
         this.hideTarget('sizeWarning')
         this.hideTarget('sizeWarningUrgent')
     }
 
     async handleStop() {
-        const mimeType = this.mediaRecorder.mimeType
-        const blob = new Blob(this.chunks, { type: mimeType })
+        // Read from the saved value rather than the recorder: onstop fires asynchronously, and
+        // stop() has already dropped the recorder by the time we get here.
+        const blob = new Blob(this.chunks, { type: this.mimeType })
         // Empty title is intentional — the backend leaves it blank so the
         // transcription handler can auto-generate one once Whisper is done.
         const title = this.titleTarget.value.trim()
@@ -181,15 +235,19 @@ export default class extends Controller {
     }
 
     updateTimer() {
-        const elapsed = Math.floor((Date.now() - this.startTime) / 1000)
+        const elapsed = Math.floor(this.recordedMs() / 1000)
         const hours = Math.floor(elapsed / 3600)
         const minutes = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0')
         const seconds = String(elapsed % 60).padStart(2, '0')
         // Recordings can now run past two hours, so roll over into an hours field rather
         // than counting minutes indefinitely.
-        this.timerTarget.textContent = hours > 0
+        const clock = hours > 0
             ? `${hours}:${minutes}:${seconds}`
             : `${minutes}:${seconds}`
+
+        // A stopped clock is ambiguous on its own — it reads the same as a broken one — so the
+        // paused state is spelled out next to it.
+        this.timerTarget.textContent = this.pauseStartedAt === null ? clock : `${clock} — paused`
     }
 
     /**
@@ -199,7 +257,7 @@ export default class extends Controller {
      * The measurement is too noisy in the first few seconds, so the nominal rate covers that.
      */
     updateRemaining() {
-        const elapsed = (Date.now() - this.startTime) / 1000
+        const elapsed = this.recordedMs() / 1000
         const bytesPerSecond = elapsed >= 3 && this.totalSize > 0
             ? this.totalSize / elapsed
             : AUDIO_BITS_PER_SECOND / 8
@@ -252,10 +310,11 @@ export default class extends Controller {
         const bufferLength = this.analyser.frequencyBinCount
         const dataArray = new Uint8Array(bufferLength)
 
-        // Match canvas resolution to display size
+        // Match canvas resolution to display size. setTransform rather than scale because a
+        // pause/resume cycle re-enters this method, and scale() would compound each time.
         canvas.width = canvas.offsetWidth * window.devicePixelRatio
         canvas.height = canvas.offsetHeight * window.devicePixelRatio
-        ctx.scale(window.devicePixelRatio, window.devicePixelRatio)
+        ctx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0)
 
         const width = canvas.offsetWidth
         const height = canvas.offsetHeight
@@ -294,6 +353,26 @@ export default class extends Controller {
         draw()
     }
 
+    /** Stops the animation but keeps the audio graph, so resuming doesn't rebuild it. */
+    freezeWaveform() {
+        if (this.animationId) {
+            cancelAnimationFrame(this.animationId)
+            this.animationId = null
+        }
+        if (this.hasWaveformTarget) {
+            this.waveformTarget.classList.add('waveform-paused')
+        }
+    }
+
+    thawWaveform() {
+        if (!this.analyser || this.animationId) return
+
+        if (this.hasWaveformTarget) {
+            this.waveformTarget.classList.remove('waveform-paused')
+        }
+        this.drawWaveform()
+    }
+
     stopWaveform() {
         if (this.animationId) {
             cancelAnimationFrame(this.animationId)
@@ -303,8 +382,10 @@ export default class extends Controller {
             this.audioContext.close()
             this.audioContext = null
         }
+        this.analyser = null
         if (this.hasWaveformTarget) {
             this.hideTarget('waveform')
+            this.waveformTarget.classList.remove('waveform-paused')
         }
     }
 

@@ -23,6 +23,7 @@
 
         <div class="flex gap-1 mb-1">
             <button class="btn btn-primary" {{ stimulus_action('audio-recorder', 'start') }} {{ stimulus_target('audio-recorder', 'startBtn') }}>Record</button>
+            <button class="btn btn-secondary" {{ stimulus_action('audio-recorder', 'togglePause') }} {{ stimulus_target('audio-recorder', 'pauseBtn') }} aria-pressed="false" disabled>Pause</button>
             <button class="btn btn-danger" {{ stimulus_action('audio-recorder', 'stop') }} {{ stimulus_target('audio-recorder', 'stopBtn') }} disabled>Stop</button>
         </div>
 
