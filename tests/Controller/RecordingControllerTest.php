@@ -132,6 +132,89 @@ class RecordingControllerTest extends DatabaseTestCase
         $this->assertSame('', $stored->getDurationLabel());
     }
 
+    /**
+     * The quota exists to stop the upload endpoint being driven programmatically, so it has to
+     * hold against a client that simply lies about how long its audio is.
+     */
+    public function testUploadIsRefusedOnceTheDailyLimitIsSpent(): void
+    {
+        $client = static::createClient();
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        $user = $this->createUser($em);
+        $this->createRecording($em, $user)->setDurationSeconds(24 * 3600);
+        $em->flush();
+
+        $client->loginUser($user);
+        $client->request('POST', '/api/recordings', ['duration' => '1'], ['audio' => $this->uploadedAudio()]);
+
+        $this->assertResponseStatusCodeSame(429);
+        $this->assertStringContainsString('Daily recording limit', $client->getResponse()->getContent());
+        // Refused before the file is moved into place — nothing is stored for a rejected upload.
+        $this->assertCount(1, $em->getRepository(Recording::class)->findBy(['owner' => $user]));
+    }
+
+    /**
+     * A recording is charged at least what its byte count could possibly represent, so
+     * understating the duration cannot buy extra budget.
+     */
+    public function testAnUnderstatedDurationIsChargedByFileSize(): void
+    {
+        $client = static::createClient();
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        $user = $this->createUser($em);
+
+        // One second short of the limit, so anything charged above a second is refused.
+        $this->createRecording($em, $user)->setDurationSeconds(24 * 3600 - 1);
+        $em->flush();
+
+        $client->loginUser($user);
+        $client->request('POST', '/api/recordings', ['duration' => '1'], [
+            // 400 KB claiming to be one second: at any believable bitrate that's minutes.
+            'audio' => $this->uploadedAudio(400 * 1024),
+        ]);
+
+        $this->assertResponseStatusCodeSame(429);
+    }
+
+    public function testUploadIsAllowedWhileUnderTheDailyLimit(): void
+    {
+        $client = static::createClient();
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        $user = $this->createUser($em);
+        $this->createRecording($em, $user)->setDurationSeconds(3600);
+        $em->flush();
+
+        $client->loginUser($user);
+        $client->request('POST', '/api/recordings', ['duration' => '600'], ['audio' => $this->uploadedAudio()]);
+
+        $this->assertResponseStatusCodeSame(201);
+    }
+
+    /** Another user's uploads are not this user's budget. */
+    public function testTheDailyLimitIsPerUser(): void
+    {
+        $client = static::createClient();
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        $heavy = $this->createUser($em, 'heavy@example.com');
+        $this->createRecording($em, $heavy)->setDurationSeconds(24 * 3600);
+        $em->flush();
+
+        $client->loginUser($this->createUser($em, 'light@example.com'));
+        $client->request('POST', '/api/recordings', ['duration' => '600'], ['audio' => $this->uploadedAudio()]);
+
+        $this->assertResponseStatusCodeSame(201);
+    }
+
+    private function uploadedAudio(int $sizeBytes = 0): UploadedFile
+    {
+        $path = tempnam(sys_get_temp_dir(), 'test_audio');
+        if ($sizeBytes > 0) {
+            file_put_contents($path, str_repeat('0', $sizeBytes));
+        }
+
+        return new UploadedFile($path, 'test.webm', 'audio/webm', null, true);
+    }
+
     public function testStatusEndpoint(): void
     {
         $client = static::createClient();

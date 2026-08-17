@@ -25,6 +25,8 @@ Transcription requests to OpenAI with large audio files can take a very long tim
 
 This separation means the web application stays responsive regardless of how many transcriptions are queued, and if a transcription fails, it can be retried without user intervention.
 
+Each user may upload 24 hours of audio per rolling 24 hours. Nobody records faster than real time, so this is unreachable by recording — it exists to stop the upload endpoint being driven programmatically. Each upload is charged the greater of its browser-reported duration and the shortest length its byte count could represent, since the reported value is client-supplied and would otherwise make the quota advisory.
+
 ### Why Mercure for real-time updates
 
 Two flows publish events that the browser needs to receive live: the transcription worker reporting status changes, and the rewriting chat streaming AI tokens to every open tab on the same recording. Traditional PHP-FPM ties up one worker per open SSE connection — with limited workers, a handful of users staring at a chat would starve the rest of the app.

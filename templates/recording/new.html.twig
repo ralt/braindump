@@ -5,6 +5,20 @@
 {% block body %}
     <h1 class="mb-2">New Recording</h1>
 
+    {# Only worth saying when it's about to bite. Reaching this by talking is not possible, so
+       seeing it at all means something automated has been uploading. #}
+    {% if dailyRemainingSeconds is defined and dailyRemainingSeconds < 3600 %}
+        <div class="alert alert-warning">
+            {% if dailyRemainingSeconds <= 0 %}
+                You've hit the 24-hour daily upload limit. Recording still works, but the upload
+                will be refused until your earlier recordings age out of the last 24 hours.
+            {% else %}
+                About {{ (dailyRemainingSeconds / 60)|round }} minutes left of your 24-hour daily
+                upload limit.
+            {% endif %}
+        </div>
+    {% endif %}
+
     <div class="card" {{ stimulus_controller('audio-recorder', {
         uploadUrl: path('api_recording_upload'),
         maxFileSize: 24 * 1024 * 1024

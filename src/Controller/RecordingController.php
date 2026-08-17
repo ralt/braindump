@@ -30,6 +30,24 @@ class RecordingController extends AbstractController
     /** A day, well above what the size cap physically allows — this only rejects garbage. */
     private const int MAX_PLAUSIBLE_DURATION_SECONDS = 86400;
 
+    /**
+     * Audio a single user may upload per rolling 24 hours. It's an abuse ceiling, not a product
+     * limit: nobody records faster than real time, so a human can't reach it by recording — only
+     * by driving the upload endpoint programmatically.
+     *
+     * Rolling rather than per calendar day, which would let someone spend a full budget either
+     * side of midnight and put 48 hours of audio through in a few minutes.
+     */
+    private const int DAILY_RECORDING_LIMIT_SECONDS = 24 * 3600;
+
+    /**
+     * Highest byte rate any realistic speech encoder produces (320 kbps), used to derive the
+     * shortest duration a given file size could possibly represent. Deliberately far above the
+     * 24 kbps the recorder asks for: this is a floor for charging the quota, and setting it near
+     * the expected rate would over-charge anyone whose browser ignored the bitrate hint.
+     */
+    private const int MAX_PLAUSIBLE_BYTES_PER_SECOND = 40000;
+
     public function __construct(
         private RecordingRepository $recordingRepository,
         private AiSessionRepository $aiSessionRepository,
@@ -71,7 +89,39 @@ class RecordingController extends AbstractController
     #[Route('/recordings/new', name: 'app_recording_new')]
     public function new(): Response
     {
-        return $this->render('recording/new.html.twig');
+        /** @var User $user */
+        $user = $this->getUser();
+
+        return $this->render('recording/new.html.twig', [
+            // Only surfaced when it's nearly gone. A permanent readout of a budget nobody can
+            // reach by talking would be noise on the one page that should be about recording.
+            'dailyRemainingSeconds' => $this->remainingDailySeconds($user),
+        ]);
+    }
+
+    /** How much of the rolling 24-hour budget the user has left, never negative. */
+    private function remainingDailySeconds(User $user): int
+    {
+        $used = $this->recordingRepository->recordedSecondsSince(
+            $user,
+            new \DateTimeImmutable('-24 hours'),
+            self::MAX_PLAUSIBLE_BYTES_PER_SECOND,
+        );
+
+        return max(0, self::DAILY_RECORDING_LIMIT_SECONDS - $used);
+    }
+
+    /**
+     * What an upload costs against the quota: what the browser claimed, or the shortest length
+     * this many bytes could represent, whichever is larger. Charging the reported value alone
+     * would make the quota advisory — the field is client-supplied.
+     */
+    private function chargedSeconds(?int $reportedDuration, int $sizeBytes): int
+    {
+        return max(
+            $reportedDuration ?? 0,
+            intdiv($sizeBytes, self::MAX_PLAUSIBLE_BYTES_PER_SECOND),
+        );
     }
 
     #[Route('/recordings/{id}', name: 'app_recording_show')]
@@ -157,6 +207,21 @@ class RecordingController extends AbstractController
             return $this->json(['error' => 'File too large (max 24MB)'], Response::HTTP_BAD_REQUEST);
         }
 
+        // Client-reported, so treat it as a hint: keep it only when it's plausible rather
+        // than rendering a nonsense length. Left null when absent or out of range.
+        $duration = $request->request->getInt('duration');
+        $reportedDuration = ($duration > 0 && $duration <= self::MAX_PLAUSIBLE_DURATION_SECONDS) ? $duration : null;
+
+        // Checked before the file is moved into place: over the quota, this upload leaves
+        // nothing behind at all.
+        $remaining = $this->remainingDailySeconds($user);
+        if ($this->chargedSeconds($reportedDuration, $audioFile->getSize()) > $remaining) {
+            return $this->json([
+                'error' => 'Daily recording limit reached — 24 hours of audio in the last 24 hours. '
+                    . 'Uploads resume as your earlier recordings age out of the window.',
+            ], Response::HTTP_TOO_MANY_REQUESTS);
+        }
+
         $recording = new Recording();
         $recording->setOwner($user);
         $recording->setTitle($title);
@@ -164,12 +229,7 @@ class RecordingController extends AbstractController
         $recording->setFileSizeBytes($audioFile->getSize());
         $recording->setStatus(RecordingStatus::Pending);
 
-        // Client-reported, so treat it as a hint: keep it only when it's plausible rather
-        // than rendering a nonsense length. Left null when absent or out of range.
-        $duration = $request->request->getInt('duration');
-        if ($duration > 0 && $duration <= self::MAX_PLAUSIBLE_DURATION_SECONDS) {
-            $recording->setDurationSeconds($duration);
-        }
+        $recording->setDurationSeconds($reportedDuration);
 
         $filename = $recording->getId() . '.webm';
         $recording->setAudioFilePath($filename);
