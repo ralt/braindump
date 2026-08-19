@@ -30,32 +30,36 @@ class UserSettingsController extends AbstractController
                 throw $this->createAccessDeniedException('Invalid CSRF token.');
             }
 
-            $apiKey = $request->request->getString('ai_api_key');
+            if ($request->request->has('new_password')) {
+                $currentPassword = $request->request->getString('current_password');
+                $newPassword = $request->request->getString('new_password');
+
+                if ($newPassword !== '') {
+                    if ($currentPassword === '' || !$this->passwordHasher->isPasswordValid($user, $currentPassword)) {
+                        $this->addFlash('error', 'Current password is incorrect.');
+                        return $this->redirectToRoute('app_user_settings');
+                    }
+
+                    if (strlen($newPassword) < 8) {
+                        $this->addFlash('error', 'New password must be at least 8 characters.');
+                        return $this->redirectToRoute('app_user_settings');
+                    }
+
+                    $user->setPassword($this->passwordHasher->hashPassword($user, $newPassword));
+                }
+            }
+
+            if ($request->request->has('ai_api_key')) {
+                $apiKey = $request->request->getString('ai_api_key');
+
+                if ($apiKey !== '') {
+                    $user->setEncryptedAiApiKey($this->encryptor->encrypt($apiKey));
+                } else {
+                    $user->setEncryptedAiApiKey(null);
+                }
+            }
+
             $provider = $request->request->getString('ai_provider');
-
-            $currentPassword = $request->request->getString('current_password');
-            $newPassword = $request->request->getString('new_password');
-
-            if ($newPassword !== '') {
-                if ($currentPassword === '' || !$this->passwordHasher->isPasswordValid($user, $currentPassword)) {
-                    $this->addFlash('error', 'Current password is incorrect.');
-                    return $this->redirectToRoute('app_user_settings');
-                }
-
-                if (strlen($newPassword) < 8) {
-                    $this->addFlash('error', 'New password must be at least 8 characters.');
-                    return $this->redirectToRoute('app_user_settings');
-                }
-
-                $user->setPassword($this->passwordHasher->hashPassword($user, $newPassword));
-            }
-
-            if ($apiKey !== '') {
-                $user->setEncryptedAiApiKey($this->encryptor->encrypt($apiKey));
-            } else {
-                $user->setEncryptedAiApiKey(null);
-            }
-
             if ($provider !== '') {
                 $user->setAiProvider($provider);
             }
