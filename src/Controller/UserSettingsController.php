@@ -30,6 +30,22 @@ class UserSettingsController extends AbstractController
                 throw $this->createAccessDeniedException('Invalid CSRF token.');
             }
 
+            if ($request->request->has('display_name')) {
+                $displayName = trim($request->request->getString('display_name'));
+
+                if ($displayName === '') {
+                    $this->addFlash('error', 'Display name cannot be empty.');
+                    return $this->redirectToRoute('app_user_settings');
+                }
+
+                if (mb_strlen($displayName) > 255) {
+                    $this->addFlash('error', 'Display name must be 255 characters or less.');
+                    return $this->redirectToRoute('app_user_settings');
+                }
+
+                $user->setDisplayName($displayName);
+            }
+
             if ($request->request->has('new_password')) {
                 $currentPassword = $request->request->getString('current_password');
                 $newPassword = $request->request->getString('new_password');
@@ -71,7 +87,8 @@ class UserSettingsController extends AbstractController
         }
 
         return $this->render('user/settings.html.twig', [
-            'hasApiKey' => $user->getEncryptedAiApiKey() !== null,
+            'displayName' => $user->getDisplayName(),
+            'hasApiKey' =>$user->getEncryptedAiApiKey() !== null,
             'aiProvider' => $user->getAiProvider() ?? 'anthropic',
         ]);
     }
