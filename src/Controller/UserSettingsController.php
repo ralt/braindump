@@ -30,32 +30,52 @@ class UserSettingsController extends AbstractController
                 throw $this->createAccessDeniedException('Invalid CSRF token.');
             }
 
-            $apiKey = $request->request->getString('ai_api_key');
+            if ($request->request->has('display_name')) {
+                $displayName = trim($request->request->getString('display_name'));
+
+                if ($displayName === '') {
+                    $this->addFlash('error', 'Display name cannot be empty.');
+                    return $this->redirectToRoute('app_user_settings');
+                }
+
+                if (mb_strlen($displayName) > 255) {
+                    $this->addFlash('error', 'Display name must be 255 characters or less.');
+                    return $this->redirectToRoute('app_user_settings');
+                }
+
+                $user->setDisplayName($displayName);
+            }
+
+            if ($request->request->has('new_password')) {
+                $currentPassword = $request->request->getString('current_password');
+                $newPassword = $request->request->getString('new_password');
+
+                if ($newPassword !== '') {
+                    if ($currentPassword === '' || !$this->passwordHasher->isPasswordValid($user, $currentPassword)) {
+                        $this->addFlash('error', 'Current password is incorrect.');
+                        return $this->redirectToRoute('app_user_settings');
+                    }
+
+                    if (strlen($newPassword) < 8) {
+                        $this->addFlash('error', 'New password must be at least 8 characters.');
+                        return $this->redirectToRoute('app_user_settings');
+                    }
+
+                    $user->setPassword($this->passwordHasher->hashPassword($user, $newPassword));
+                }
+            }
+
+            if ($request->request->has('ai_api_key')) {
+                $apiKey = $request->request->getString('ai_api_key');
+
+                if ($apiKey !== '') {
+                    $user->setEncryptedAiApiKey($this->encryptor->encrypt($apiKey));
+                } else {
+                    $user->setEncryptedAiApiKey(null);
+                }
+            }
+
             $provider = $request->request->getString('ai_provider');
-
-            $currentPassword = $request->request->getString('current_password');
-            $newPassword = $request->request->getString('new_password');
-
-            if ($newPassword !== '') {
-                if ($currentPassword === '' || !$this->passwordHasher->isPasswordValid($user, $currentPassword)) {
-                    $this->addFlash('error', 'Current password is incorrect.');
-                    return $this->redirectToRoute('app_user_settings');
-                }
-
-                if (strlen($newPassword) < 8) {
-                    $this->addFlash('error', 'New password must be at least 8 characters.');
-                    return $this->redirectToRoute('app_user_settings');
-                }
-
-                $user->setPassword($this->passwordHasher->hashPassword($user, $newPassword));
-            }
-
-            if ($apiKey !== '') {
-                $user->setEncryptedAiApiKey($this->encryptor->encrypt($apiKey));
-            } else {
-                $user->setEncryptedAiApiKey(null);
-            }
-
             if ($provider !== '') {
                 $user->setAiProvider($provider);
             }
@@ -67,7 +87,8 @@ class UserSettingsController extends AbstractController
         }
 
         return $this->render('user/settings.html.twig', [
-            'hasApiKey' => $user->getEncryptedAiApiKey() !== null,
+            'displayName' => $user->getDisplayName(),
+            'hasApiKey' =>$user->getEncryptedAiApiKey() !== null,
             'aiProvider' => $user->getAiProvider() ?? 'anthropic',
         ]);
     }
